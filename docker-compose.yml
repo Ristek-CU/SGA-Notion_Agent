@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: orchestrator-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: evolution
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - orchestrator-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: orchestrator-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - orchestrator-network
+
+  evolution-api:
+    image: atendai/evolution-api:v1.8.2
+    container_name: orchestrator-evolution-api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_URL: http://localhost:8080
+      AUTHENTICATION_API_KEY: evolution-api-key-change-this
+      DATABASE_ENABLED: "true"
+      DATABASE_CONNECTION_URI: postgresql://postgres:postgrespassword@postgres:5432/evolution?schema=public
+      DATABASE_CLIENT_NAME: evolution_exchange
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - orchestrator-network
+
+  orchestrator-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-backend
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      EVOLUTION_API_URL: http://evolution-api:8080
+    depends_on:
+      - redis
+      - evolution-api
+    networks:
+      - orchestrator-network
+
+  orchestrator-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: orchestrator-frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - orchestrator-backend
+    networks:
+      - orchestrator-network
+
+networks:
+  orchestrator-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "Salman",
+    "nickname": "Salman",
+    "phone": "628123456789",
+    "division": "Tech",
+    "role": "Lead",
+    "aliases": [
+      "salman",
+      "sam"
+    ]
+  },
+  {
+    "name": "Budi Santoso",
+    "nickname": "Budi",
+    "phone": "628987654321",
+    "division": "Ristek",
+    "role": "Staff",
+    "aliases": [
+      "budi"
+    ]
+  }
+]
