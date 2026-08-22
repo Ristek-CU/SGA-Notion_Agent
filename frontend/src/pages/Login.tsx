@@ -13,12 +13,12 @@ export const Login: React.FC = () => {
     try {
       const res = await fetch('/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ username, password }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
       });
       if (!res.ok) throw new Error('Invalid credentials');
       const data = await res.json();
-      setToken(data.access_token);
+      setToken(data.data.token);
       navigate('/');
     } catch (err: any) {
       setError(err.message);
