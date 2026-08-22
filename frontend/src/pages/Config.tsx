@@ -3,10 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '../api/client';
 
 export const Config: React.FC = () => {
-  const { data: config } = useQuery({
+  const { data: config, isLoading, isError, error } = useQuery({
     queryKey: ['config'],
-    queryFn: () => fetchApi<any>('/admin/config'),
+    queryFn: () => fetchApi<any>('/admin/system/env'),
   });
+
+  if (isLoading) return <div className="p-4">Loading config...</div>;
+  if (isError) return <div className="p-4 text-red-600">Gagal memuat config: {(error as Error)?.message}</div>;
 
   return (
     <div className="space-y-6">

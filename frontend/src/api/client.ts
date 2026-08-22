@@ -31,5 +31,8 @@ export async function fetchApi<T>(endpoint: string, options: RequestInit = {}): 
     throw new Error(errorData.detail || `Error ${response.status}`);
   }
 
-  return response.json();
+  // Backend membungkus semua respons 2xx dalam { data, error, message }.
+  // Unwrap .data supaya setiap page membaca data yang sebenarnya.
+  const json = await response.json();
+  return json.data;
 }

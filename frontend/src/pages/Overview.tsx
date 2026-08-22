@@ -5,12 +5,13 @@ import { StatCard } from '../components/StatCard';
 import { Ticket, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 
 export const Overview: React.FC = () => {
-  const { data: overview, isLoading } = useQuery({
+  const { data: overview, isLoading, isError, error } = useQuery({
     queryKey: ['overview'],
-    queryFn: () => fetchApi<any>('/admin/backlog/overview'),
+    queryFn: () => fetchApi<any>('/admin/notion/overview'),
   });
 
   if (isLoading) return <div className="p-4">Loading overview...</div>;
+  if (isError) return <div className="p-4 text-red-600">Gagal memuat overview: {(error as Error)?.message}</div>;
 
   return (
     <div className="space-y-6">
@@ -26,26 +27,35 @@ export const Overview: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Tickets by Division</h2>
-          <div className="space-y-3">
-            {Object.entries(overview?.by_division || {}).map(([div, count]) => (
-              <div key={div} className="flex justify-between items-center pb-2 border-b border-slate-100">
-                <span className="text-sm font-medium text-slate-700">{div}</span>
-                <span className="text-sm font-bold text-slate-900">{count as number}</span>
-              </div>
-            ))}
-          </div>
+          {Object.entries(overview?.by_division || {}).length === 0 ? (
+            <p className="text-sm text-slate-400">Belum ada data.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(overview?.by_division || {}).map(([div, count]) => (
+                <div key={div} className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-sm font-medium text-slate-700">{div}</span>
+                  <span className="text-sm font-bold text-slate-900">{count as number}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Tickets by Priority</h2>
-          <div className="space-y-3">
-            {Object.entries(overview?.by_priority || {}).map(([pri, count]) => (
-              <div key={pri} className="flex justify-between items-center pb-2 border-b border-slate-100">
-                <span className="text-sm font-medium text-slate-700">{pri}</span>
-                <span className="text-sm font-bold text-slate-900">{count as number}</span>
-              </div>
-            ))}
-          </div>
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Tickets by Status</h2>
+          {Object.entries(overview?.by_status || {}).length === 0 ? (
+            <p className="text-sm text-slate-400">Belum ada data.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(overview?.by_status || {}).map(([status, count]) => (
+                <div key={status} className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <span className="text-sm font-medium text-slate-700">{status}</span>
+                  <span className="text-sm font-bold text-slate-900">{count as number}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
