@@ -44,33 +44,32 @@ def _session_name() -> str:
 
 @router.get("/wa/status")
 async def get_wa_status(current_user: str = Depends(verify_token)):
-    res = await _waha_request("GET", f"/api/session/{_session_name()}/status")
+    res = await _waha_request("GET", f"/api/sessions/{_session_name()}")
     return {"data": res, "error": None, "message": "Instance status retrieved"}
 
 
 @router.get("/wa/qr")
 async def get_wa_qr(current_user: str = Depends(verify_token)):
-    # Status berisi qr/lastKnownQrCode saat sesi dalam kondisi SCAN_QR_CODE
-    res = await _waha_request("GET", f"/api/session/{_session_name()}/status")
+    # Status berisi qr/base64 saat sesi dalam kondisi SCAN_QR_CODE
+    res = await _waha_request("GET", f"/api/sessions/{_session_name()}")
     return {"data": res, "error": None, "message": "QR code retrieved"}
 
 
 @router.post("/wa/scan")
 async def scan_wa(current_user: str = Depends(verify_token)):
-    res = await _waha_request("POST", f"/api/session/{_session_name()}/start")
+    res = await _waha_request("POST", "/api/sessions/start", json_body={"name": _session_name()})
     return {"data": res, "error": None, "message": "Scan requested"}
 
 
 @router.post("/wa/disconnect")
 async def disconnect_wa(current_user: str = Depends(verify_token)):
-    res = await _waha_request("POST", f"/api/session/{_session_name()}/logout?logout=true")
+    res = await _waha_request("POST", f"/api/sessions/{_session_name()}/logout", json_body={"logout": True})
     return {"data": res, "error": None, "message": "Disconnected"}
 
 
 @router.post("/wa/refresh")
 async def refresh_wa(current_user: str = Depends(verify_token)):
-    # WaHa tidak punya /restart; restart == start ulang sesi
-    res = await _waha_request("POST", f"/api/session/{_session_name()}/start")
+    res = await _waha_request("POST", f"/api/sessions/{_session_name()}/restart")
     return {"data": res, "error": None, "message": "Instance refreshed"}
 
 

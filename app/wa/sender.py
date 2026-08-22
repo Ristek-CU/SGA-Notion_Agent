@@ -104,7 +104,7 @@ async def check_number_status(phone: str, instance: Optional[str] = None) -> Dic
 
 async def fetch_bot_jid(instance: Optional[str] = None) -> Optional[str]:
     target_instance = instance or settings.waha_instance_name
-    url = f"{settings.waha_api_url.rstrip('/')}/api/session/{target_instance}/me"
+    url = f"{settings.waha_api_url.rstrip('/')}/api/sessions/{target_instance}/me"
     headers = {"X-Api-Key": settings.waha_api_key}
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
