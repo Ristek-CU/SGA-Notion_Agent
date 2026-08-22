@@ -54,9 +54,9 @@ async def send_whatsapp_message(
     instance: Optional[str] = None,
     quoted_msg_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    target_instance = instance or settings.evolution_instance_name
-    url = f"{settings.evolution_api_url.rstrip('/')}/message/sendText/{target_instance}"
-    
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/sendText"
+
     # Clean JID/number format
     recipient = number_or_jid
     if not recipient.endswith("@s.whatsapp.net") and not recipient.endswith("@g.us"):
@@ -64,22 +64,16 @@ async def send_whatsapp_message(
         recipient = f"{cleaned}@s.whatsapp.net"
 
     payload: Dict[str, Any] = {
-        "number": recipient,
-        "options": {
-            "delay": 1200,
-            "presence": "composing",
-            "linkPreview": True,
-        },
-        "textMessage": {
-            "text": text
-        }
+        "session": target_instance,
+        "chatId": recipient,
+        "text": text,
     }
 
     if quoted_msg_id:
-        payload["options"]["quoted"] = {"key": {"id": quoted_msg_id}}
+        payload["quoted"] = quoted_msg_id
 
     headers = {
-        "apikey": settings.evolution_api_key,
+        "X-Api-Key": settings.waha_api_key,
         "Content-Type": "application/json",
     }
 
@@ -98,10 +92,10 @@ async def send_direct_message(phone: str, text: str) -> Dict[str, Any]:
 
 
 async def check_number_status(phone: str, instance: Optional[str] = None) -> Dict[str, Any]:
-    target_instance = instance or settings.evolution_instance_name
-    url = f"{settings.evolution_api_url.rstrip('/')}/chat/whatsappNumbers/{target_instance}"
-    headers = {"apikey": settings.evolution_api_key, "Content-Type": "application/json"}
-    payload = {"numbers": [phone]}
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/contacts/{target_instance}/check-phone"
+    headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
+    payload = {"phone": phone}
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(url, json=payload, headers=headers)
         resp.raise_for_status()
@@ -109,19 +103,14 @@ async def check_number_status(phone: str, instance: Optional[str] = None) -> Dic
 
 
 async def fetch_bot_jid(instance: Optional[str] = None) -> Optional[str]:
-    target_instance = instance or settings.evolution_instance_name
-    url = f"{settings.evolution_api_url.rstrip('/')}/instance/fetchInstances"
-    headers = {"apikey": settings.evolution_api_key}
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/session/{target_instance}/me"
+    headers = {"X-Api-Key": settings.waha_api_key}
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(url, headers=headers)
             if resp.status_code == 200:
-                data = resp.json()
-                for inst in data:
-                    if inst.get("name") == target_instance or inst.get("instance", {}).get("instanceName") == target_instance:
-                        owner = inst.get("ownerJid") or inst.get("instance", {}).get("owner")
-                        if owner:
-                            return owner
+                return resp.json().get("id")
     except Exception:
         pass
     return None

@@ -17,7 +17,34 @@ _processed_msg_ids: Dict[str, float] = {}
 class WebhookPayload(BaseModel):
     event: Optional[str] = None
     instance: Optional[str] = None
+    session: Optional[str] = None
+    payload: Dict[str, Any] = Field(default_factory=dict)
     data: Dict[str, Any] = Field(default_factory=dict)
+
+
+def normalize_waha_message(msg: Dict[str, Any]) -> Dict[str, Any]:
+    """Map payload pesan WaHa (flatten) ke bentuk yang dimengerti process_incoming_message."""
+    from_me = bool(msg.get("fromMe") or msg.get("isFromMe"))
+    chat_id = msg.get("chatId") or msg.get("from") or ""
+    sender = msg.get("sender") or {}
+    is_group = chat_id.endswith("@g.us")
+    participant = sender.get("id") or msg.get("from") or chat_id
+    text = (
+        msg.get("text")
+        or (msg.get("message") or {}).get("text")
+        or (msg.get("message") or {}).get("conversation")
+        or ""
+    )
+    return {
+        "key": {
+            "id": msg.get("id"),
+            "fromMe": from_me,
+            "remoteJid": chat_id,
+            "participant": participant if is_group else chat_id,
+        },
+        "message": {"conversation": text},
+        "pushName": msg.get("fromName") or sender.get("name"),
+    }
 
 
 def is_duplicate_msg(msg_id: str) -> bool:
@@ -106,6 +133,17 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
 
 @router.post("/webhook/{instance}")
 async def handle_webhook(instance: str, payload: WebhookPayload):
+    # Format WaHa: { event, session, payload: <message object> }
+    if payload.payload:
+        event = payload.event or ""
+        session_name = payload.session or payload.instance or instance
+        if event.startswith("message"):
+            msg = normalize_waha_message(payload.payload)
+            if msg["key"].get("id"):
+                asyncio.create_task(process_incoming_message(msg, instance_name=session_name))
+        return {"status": "processing"}
+
+    # Format Evolution API: { event: "messages.upsert", data: <message object> }
     data = payload.data
     if payload.event == "messages.upsert" or "message" in data:
         asyncio.create_task(process_incoming_message(data, instance_name=instance))

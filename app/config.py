@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     notion_divisions_id: Optional[str] = None
     notion_members_id: Optional[str] = None
     notion_version: str = "2022-06-28"
-    evolution_api_url: str = "http://evolution-api:8080"
-    evolution_api_key: str = "evolution-api-key-change-this"
-    evolution_instance_name: str = "wa-bot"
+    waha_api_url: str = "http://orc-waha-0qmqey:3000"
+    waha_api_key: str = "waha-notion-agent-2026"
+    waha_instance_name: str = "wa-bot"
     redis_url: str = "redis://redis:6379"
     lid_phone_map: str = ""
     cache_ttl_backlog_ms: int = 120_000

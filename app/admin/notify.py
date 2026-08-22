@@ -117,8 +117,8 @@ def get_system_env(current_user: str = Depends(verify_token)):
     env_info = {
         "NODE_ENV": settings.node_env,
         "PORT": settings.port,
-        "EVOLUTION_API_URL": settings.evolution_api_url,
-        "EVOLUTION_INSTANCE_NAME": settings.evolution_instance_name,
+        "WAHA_API_URL": settings.waha_api_url,
+        "WAHA_INSTANCE_NAME": settings.waha_instance_name,
         "REDIS_URL": settings.redis_url,
         "NOTION_DATABASE_ID": settings.notion_database_id,
         "NOTION_MASTER_BACKLOG_ID": settings.notion_master_backlog_id,
