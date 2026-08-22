@@ -1,3 +1,4 @@
+import base64
 import httpx
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -50,9 +51,19 @@ async def get_wa_status(current_user: str = Depends(verify_token)):
 
 @router.get("/wa/qr")
 async def get_wa_qr(current_user: str = Depends(verify_token)):
-    # Status berisi qr/base64 saat sesi dalam kondisi SCAN_QR_CODE
-    res = await _waha_request("GET", f"/api/sessions/{_session_name()}")
-    return {"data": res, "error": None, "message": "QR code retrieved"}
+    """Proxy QR pairing WaHa -> base64 PNG (agar bisa dirender frontend via Bearer JWT)."""
+    name = _session_name()
+    url = f"{settings.waha_api_url.rstrip('/')}/api/{name}/auth/qr"
+    headers = {"X-Api-Key": settings.waha_api_key, "Accept": "image/png"}
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.get(url, headers=headers)
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"QR belum tersedia (status bukan SCAN_QR_CODE). WaHa: {(resp.text or '')[:200]}",
+        )
+    b64 = base64.b64encode(resp.content).decode()
+    return {"data": {"qr_png_base64": b64}, "error": None, "message": "QR fetched"}
 
 
 @router.post("/wa/scan")
