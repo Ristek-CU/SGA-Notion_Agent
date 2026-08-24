@@ -3,8 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { removeToken } from '../api/client';
 import { 
   LayoutDashboard, 
-  Ticket, 
-  MessageSquare, 
+  Ticket,
   Users, 
   Send, 
   History, 
@@ -18,7 +17,6 @@ import {
 const navItems = [
   { path: '/', label: 'Overview', icon: LayoutDashboard },
   { path: '/tickets', label: 'Tickets', icon: Ticket },
-  { path: '/wa', label: 'WA Connection', icon: MessageSquare },
   { path: '/members', label: 'Members', icon: Users },
   { path: '/broadcast', label: 'Broadcast', icon: Send },
   { path: '/sessions', label: 'Sessions', icon: History },

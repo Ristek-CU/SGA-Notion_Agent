@@ -6,7 +6,6 @@ import { Login } from './pages/Login';
 import { Overview } from './pages/Overview';
 import { Tickets } from './pages/Tickets';
 import { TicketDetail } from './pages/TicketDetail';
-import { WA } from './pages/WA';
 import { Members } from './pages/Members';
 import { Broadcast } from './pages/Broadcast';
 import { Session } from './pages/Session';
@@ -41,7 +40,6 @@ export const App: React.FC = () => {
             <Route index element={<Overview />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="tickets/:id" element={<TicketDetail />} />
-            <Route path="wa" element={<WA />} />
             <Route path="members" element={<Members />} />
             <Route path="broadcast" element={<Broadcast />} />
             <Route path="sessions" element={<Session />} />
