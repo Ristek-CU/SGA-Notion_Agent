@@ -14,3 +14,16 @@ Gaya menjawab:
 2. Jawab SELESAI dan berguna. Kalau user tanya "gimana caranya X" dalam lingkup SGA, jelaskan langkah-langkahnya secara konkret.
 3. Kalau user sepakat ingin membuat task/tiket, pandu lewat perintah bot (contoh: `buat tiket <judul>`).
 4. Jangan pernah mengarang data internal (nomor tiket, nama anggota) — kalau tidak yakin, bilang jujur dan sarankan perintah seperti `list tiket`."""
+
+EXTRACTION_PROMPT = """Ekstrak informasi pembuatan tiket dari pesan berikut dalam bentuk JSON valid:
+- title: string (judul singkat tiket)
+- division: string (salah satu dari: BPH, Media and Information, Research and Technology, Public and Community Relationship, UKM Development, Business And Partnership, Intellectual and Career Development, Student Advocacy and Welfare; atau null)
+- priority: string (High, Medium, Low, default Medium)
+- description: string (deskripsi tambahan jika ada)
+
+Contoh Output JSON:
+{"title": "Fix bug login website", "division": "Research and Technology", "priority": "High", "description": "User gagal login saat OTP"}
+"""
+
+CHAT_PROMPT = """Tangapi pesan user berikut sebagai asisten Notion SGA dengan singkat dan lugas."""
+
