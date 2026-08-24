@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '../api/client';
 
 export const Tickets: React.FC = () => {
+  const navigate = useNavigate();
   const { data: tickets, isLoading, isError, error } = useQuery({
     queryKey: ['tickets'],
     queryFn: () => fetchApi<any[]>('/admin/notion/backlog'),
@@ -34,6 +36,7 @@ export const Tickets: React.FC = () => {
                 <th className="p-4">Status</th>
                 <th className="p-4">Priority</th>
                 <th className="p-4">Division</th>
+                <th className="p-4">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -43,6 +46,14 @@ export const Tickets: React.FC = () => {
                   <td className="p-4">{t.status}</td>
                   <td className="p-4">{t.priority}</td>
                   <td className="p-4">{t.division}</td>
+                  <td className="p-4">
+                    <button
+                      onClick={() => navigate(`/tickets/${t.id}`)}
+                      className="text-sky-600 hover:text-sky-800 hover:underline"
+                    >
+                      Detail
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
