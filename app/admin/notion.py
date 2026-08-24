@@ -47,6 +47,7 @@ class NoteRequest(BaseModel):
 class ContactCreateRequest(BaseModel):
     name: str
     phone: str
+    nickname: Optional[str] = None
     role: Optional[str] = None
     division: Optional[str] = None
 
@@ -54,6 +55,7 @@ class ContactCreateRequest(BaseModel):
 class ContactUpdateRequest(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
+    nickname: Optional[str] = None
     role: Optional[str] = None
     division: Optional[str] = None
 
@@ -132,13 +134,13 @@ def list_contacts(current_user: str = Depends(verify_token)):
 
 @router.post("/contacts")
 def create_contact(req: ContactCreateRequest, current_user: str = Depends(verify_token)):
-    contact = add_or_update_contact(req.name, req.phone, req.role, req.division)
+    contact = add_or_update_contact(req.name, req.phone, req.role, req.division, nickname=req.nickname)
     return {"data": contact, "error": None, "message": "Contact saved"}
 
 
 @router.put("/contacts/{phone}")
 def update_contact(phone: str, req: ContactUpdateRequest, current_user: str = Depends(verify_token)):
-    contact = add_or_update_contact(req.name or phone, req.phone or phone, req.role, req.division)
+    contact = add_or_update_contact(req.name or phone, req.phone or phone, req.role, req.division, nickname=req.nickname)
     return {"data": contact, "error": None, "message": "Contact updated"}
 
 

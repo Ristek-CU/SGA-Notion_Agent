@@ -53,13 +53,30 @@ async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(v
 
 @router.get("/sessions")
 async def get_sessions(current_user: str = Depends(verify_token)):
+    """List session percakapan bot (per user, ringkas)."""
+    import json as _json
     r = await session_manager.get_redis()
     keys = await r.keys("session:*")
     sessions = []
-    for k in keys:
+    for k in sorted(keys):
         raw = await r.get(k)
-        if raw:
-            sessions.append({"key": k, "data": raw})
+        if not raw:
+            continue
+        try:
+            d = _json.loads(raw)
+        except Exception:
+            continue
+        msgs = d.get("messages") or []
+        last = d.get("last_activity") or 0
+        sessions.append({
+            "phone": (k.split(":", 1)[1] if ":" in k else k),
+            "msg_count": len(msgs),
+            "last_msg": (msgs[-1].get("content", "")[:120] if msgs else ""),
+            "last_activity": last,
+            "pending_ticket": bool(d.get("pending_ticket")),
+            "ttl": await r.ttl(k),
+        })
+    sessions.sort(key=lambda s: s["last_activity"], reverse=True)
     return {"data": sessions, "error": None, "message": "Sessions listed"}
 
 
