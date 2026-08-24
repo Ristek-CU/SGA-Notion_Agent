@@ -53,7 +53,15 @@ def normalize_waha_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None):
+async def _send(reply_override, remote_jid: str, text: str, instance_name: Optional[str]):
+    """Kirim balasan via override (mis. Telegram) jika ada, selain itu via WhatsApp."""
+    if reply_override is not None:
+        await reply_override(remote_jid, text)
+    else:
+        await send_whatsapp_message(remote_jid, text, instance=instance_name)
+
+
+async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None):
     key = data.get("key", {})
     msg_id = key.get("id")
     if not msg_id or await is_duplicate_msg(msg_id):
@@ -102,7 +110,7 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         if is_group:
             await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
         else:
-            await send_whatsapp_message(remote_jid, reply_text, instance=instance_name)
+            await _send(reply_override, remote_jid, reply_text, instance_name)
         return
 
     # Check for commands
@@ -121,7 +129,7 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
     if is_group:
         await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
     else:
-        await send_whatsapp_message(remote_jid, reply_text, instance=instance_name)
+        await _send(reply_override, remote_jid, reply_text, instance_name)
 
 
 @router.post("/webhook/{instance}")

@@ -61,25 +61,17 @@ async def telegram_webhook(token: str, request: Request):
 async def _process_and_reply(norm: dict, chat_id: str):
     """Jalankan pipeline WaHa lalu balas via Telegram sendMessage.
 
-    ponytail: intercept send_whatsapp_message di app.webhook.handler (import langsung)
-    supaya reply non-group diarahkan ke Telegram. Kalau nanti perlu multi-platform
-    bersih, refactor process_incoming_message terima parameter `reply` callable.
+    reply_override mengarahkan semua balasan non-group ke Telegram tanpa
+    monkeypatch global (aman terhadap pesan concurrent).
     """
-    import app.webhook.handler as handler
     from app.webhook.handler import process_incoming_message
 
     sent: list = []
-    orig_send = handler.send_whatsapp_message
 
-    async def fake_send(remote_jid, text, instance=None, **kw):
+    async def tg_send(remote_jid, text, **kw):
         sent.append(text)
-        return {"status": "intercepted"}
 
-    try:
-        handler.send_whatsapp_message = fake_send
-        await process_incoming_message(norm)
-    finally:
-        handler.send_whatsapp_message = orig_send
+    await process_incoming_message(norm, reply_override=tg_send)
 
     for text in sent:
         await send_telegram_message(chat_id, text)
