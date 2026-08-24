@@ -5,12 +5,17 @@ import { fetchApi } from '../api/client';
 interface Contact {
   name: string;
   phone: string;
+  telegram?: string;
   nickname?: string;
   role?: string;
   division?: string;
 }
 
-const EMPTY_FORM = { name: '', phone: '', nickname: '', role: '', division: '' };
+const stripAt = (s: string) => s.trim().replace(/^@+/, '');
+const waTgCell = (c: Contact) =>
+  [c.phone?.trim(), c.telegram?.trim() ? `@${stripAt(c.telegram)}` : ''].filter(Boolean).join(' / ') || '-';
+
+const EMPTY_FORM = { name: '', phone: '', telegram: '', nickname: '', role: '', division: '' };
 
 const DIVISIONS = [
   'BPH',
@@ -75,7 +80,7 @@ export const Members: React.FC = () => {
 
   const openAdd = () => { setForm(EMPTY_FORM); setEditingPhone(null); setShowModal(true); };
   const openEdit = (c: Contact) => {
-    setForm({ name: c.name || '', phone: c.phone || '', nickname: c.nickname || '', role: c.role || '', division: c.division || '' });
+    setForm({ name: c.name || '', phone: c.phone || '', telegram: stripAt(c.telegram || ''), nickname: c.nickname || '', role: c.role || '', division: c.division || '' });
     setEditingPhone(c.phone);
     setShowModal(true);
   };
@@ -83,8 +88,9 @@ export const Members: React.FC = () => {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.phone) return;
-    if (editingPhone) updateMut.mutate({ phone: editingPhone, body: form });
-    else createMut.mutate(form);
+    const body = { ...form, telegram: stripAt(form.telegram) };
+    if (editingPhone) updateMut.mutate({ phone: editingPhone, body });
+    else createMut.mutate(body);
   };
 
   if (isLoading) return <div className="p-4">Loading contacts...</div>;
@@ -117,7 +123,7 @@ export const Members: React.FC = () => {
               <tr>
                 <th className="p-4">Name</th>
                 <th className="p-4">Nickname</th>
-                <th className="p-4">Phone</th>
+                <th className="p-4">Whatsapp / Telegram</th>
                 <th className="p-4">Division / Role</th>
                 <th className="p-4 text-right">Aksi</th>
               </tr>
@@ -127,7 +133,7 @@ export const Members: React.FC = () => {
                 <tr key={c.phone || i} className="hover:bg-slate-50">
                   <td className="p-4 font-medium text-slate-900">{c.name}</td>
                   <td className="p-4">{c.nickname || '-'}</td>
-                  <td className="p-4 font-mono text-xs">{c.phone}</td>
+                  <td className="p-4 font-mono text-xs">{waTgCell(c)}</td>
                   <td className="p-4">{[c.division, c.role].filter(Boolean).join(' / ') || '-'}</td>
                   <td className="p-4 text-right whitespace-nowrap">
                     <button onClick={() => openEdit(c)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-3">Edit</button>
@@ -152,10 +158,11 @@ export const Members: React.FC = () => {
           >
             <h2 className="text-lg font-bold text-slate-900">{editingPhone ? 'Edit Member' : 'Tambah Member'}</h2>
             {[
-              ['name', 'Nama', true],
-              ['nickname', 'Nickname', false],
-              ['phone', 'Phone (62…)', true],
-            ].map(([key, label, req]) => (
+              ['name', 'Nama', true, ''],
+              ['nickname', 'Nickname', false, ''],
+              ['phone', 'Phone (62…)', true, ''],
+              ['telegram', 'Telegram', false, 'tanpa @ (boleh ketik @, sistem hapus otomatis)'],
+            ].map(([key, label, req, helper]) => (
               <label key={key as string} className="block">
                 <span className="text-xs font-semibold text-slate-500 uppercase">{label}{req ? ' *' : ''}</span>
                 <input
@@ -164,6 +171,7 @@ export const Members: React.FC = () => {
                   required={!!req}
                   className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
                 />
+                {helper ? <span className="text-xs text-slate-400">{helper}</span> : null}
               </label>
             ))}
             <label className="block">
