@@ -9,9 +9,10 @@ import {
   Send, 
   History, 
   ShieldAlert, 
-  Settings, 
-  FileText, 
-  LogOut 
+  Settings,
+  FileText,
+  Bot,
+  LogOut
 } from 'lucide-react';
 
 const navItems = [
@@ -23,6 +24,7 @@ const navItems = [
   { path: '/sessions', label: 'Sessions', icon: History },
   { path: '/guard', label: 'Guard Rules', icon: ShieldAlert },
   { path: '/config', label: 'Config', icon: Settings },
+  { path: '/platforms', label: 'Platforms', icon: Bot },
   { path: '/audit', label: 'Audit Logs', icon: FileText },
 ];
 

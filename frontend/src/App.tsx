@@ -13,6 +13,7 @@ import { Session } from './pages/Session';
 import { Guard } from './pages/Guard';
 import { Config } from './pages/Config';
 import { Audit } from './pages/Audit';
+import { Platforms } from './pages/Platforms';
 import { getToken } from './api/client';
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ export const App: React.FC = () => {
             <Route path="guard" element={<Guard />} />
             <Route path="config" element={<Config />} />
             <Route path="audit" element={<Audit />} />
+            <Route path="platforms" element={<Platforms />} />
           </Route>
         </Routes>
       </BrowserRouter>
