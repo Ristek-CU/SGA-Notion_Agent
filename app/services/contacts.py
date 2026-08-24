@@ -118,7 +118,7 @@ def get_full_name(identifier: str) -> str:
     return identifier
 
 
-def add_or_update_contact(name: str, phone: str, role: Optional[str] = None, division: Optional[str] = None, nickname: Optional[str] = None) -> Dict[str, Any]:
+def add_or_update_contact(name: str, phone: str, role: Optional[str] = None, division: Optional[str] = None, nickname: Optional[str] = None, telegram: Optional[str] = None) -> Dict[str, Any]:
     contacts = load_contacts()
     norm_phone = normalize_phone(phone)
     updated = False
@@ -129,6 +129,12 @@ def add_or_update_contact(name: str, phone: str, role: Optional[str] = None, div
         new_contact["division"] = division
     if nickname is not None and nickname != "":
         new_contact["nickname"] = nickname
+    if telegram is not None:
+        t = telegram.strip().lstrip("@").lower()
+        if t:
+            new_contact["telegram"] = t
+        else:
+            new_contact.pop("telegram", None)
 
     for idx, c in enumerate(contacts):
         if normalize_phone(c.get("phone", "")) == norm_phone:
