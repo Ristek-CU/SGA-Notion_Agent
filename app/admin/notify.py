@@ -4,6 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.admin.auth import verify_token
 from app.services.session import session_manager
+from app.services.store import (
+    record_audit_log,
+    get_guard_state,
+    update_guard_state,
+    get_audit_logs,
+)
 from app.services.notify import notify_pic
 from app.wa.sender import send_direct_message
 from app.config import settings
@@ -21,25 +27,6 @@ class GuardConfigUpdate(BaseModel):
     strict_mode: Optional[bool] = None
 
 
-# Dynamic runtime state for Guard toggle/config
-guard_runtime_state = {
-    "enabled": True,
-    "strict_mode": True,
-}
-
-audit_logs_storage: List[Dict[str, Any]] = []
-
-
-def record_audit_log(user: str, action: str, details: Dict[str, Any]):
-    import time
-    audit_logs_storage.append({
-        "timestamp": time.time(),
-        "user": user,
-        "action": action,
-        "details": details,
-    })
-
-
 @router.post("/broadcast")
 async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(verify_token)):
     success_count = 0
@@ -52,7 +39,7 @@ async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(v
         except Exception:
             failed.append(item)
 
-    record_audit_log(current_user, "TRIGGER_BROADCAST", {"recipients_count": len(req.recipients), "success": success_count})
+    await record_audit_log(current_user, "TRIGGER_BROADCAST", {"recipients_count": len(req.recipients), "success": success_count})
     return {
         "data": {
             "total": len(req.recipients),
@@ -88,7 +75,7 @@ async def reset_sessions(phone: Optional[str] = None, current_user: str = Depend
         if keys:
             await r.delete(*keys)
 
-    record_audit_log(current_user, "RESET_SESSIONS", {"phone": phone, "cleared_count": count})
+    await record_audit_log(current_user, "RESET_SESSIONS", {"phone": phone, "cleared_count": count})
     return {
         "data": {"cleared": count},
         "error": None,
@@ -97,19 +84,16 @@ async def reset_sessions(phone: Optional[str] = None, current_user: str = Depend
 
 
 @router.get("/guard/config")
-def get_guard_config(current_user: str = Depends(verify_token)):
-    return {"data": guard_runtime_state, "error": None, "message": "Guard config retrieved"}
+async def get_guard_config(current_user: str = Depends(verify_token)):
+    state = await get_guard_state()
+    return {"data": state, "error": None, "message": "Guard config retrieved"}
 
 
 @router.post("/guard/config")
-def update_guard_config(req: GuardConfigUpdate, current_user: str = Depends(verify_token)):
-    if req.enabled is not None:
-        guard_runtime_state["enabled"] = req.enabled
-    if req.strict_mode is not None:
-        guard_runtime_state["strict_mode"] = req.strict_mode
-
-    record_audit_log(current_user, "UPDATE_GUARD_CONFIG", guard_runtime_state)
-    return {"data": guard_runtime_state, "error": None, "message": "Guard config updated"}
+async def update_guard_config(req: GuardConfigUpdate, current_user: str = Depends(verify_token)):
+    state = await update_guard_state(enabled=req.enabled, strict_mode=req.strict_mode)
+    await record_audit_log(current_user, "UPDATE_GUARD_CONFIG", state)
+    return {"data": state, "error": None, "message": "Guard config updated"}
 
 
 @router.get("/system/env")
@@ -127,5 +111,6 @@ def get_system_env(current_user: str = Depends(verify_token)):
 
 
 @router.get("/system/audit-logs")
-def get_audit_logs(current_user: str = Depends(verify_token)):
-    return {"data": audit_logs_storage, "error": None, "message": "Audit logs retrieved"}
+async def get_system_audit_logs(current_user: str = Depends(verify_token)):
+    logs = await get_audit_logs()
+    return {"data": logs, "error": None, "message": "Audit logs retrieved"}
