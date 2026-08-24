@@ -12,6 +12,28 @@ interface Contact {
 
 const EMPTY_FORM = { name: '', phone: '', nickname: '', role: '', division: '' };
 
+const DIVISIONS = [
+  'BPH',
+  'Media and Information',
+  'Research and Technology',
+  'Public and Community Relationship',
+  'UKM Development',
+  'Business And Partnership',
+  'Intellectual and Career Development',
+  'Student Advocacy and Welfare',
+];
+
+const ROLES = [
+  'President',
+  'Vice President',
+  'Controller',
+  'Treasurer',
+  'Secretary',
+  'Head',
+  'Deputy Head',
+  'Staff',
+];
+
 export const Members: React.FC = () => {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
@@ -96,8 +118,7 @@ export const Members: React.FC = () => {
                 <th className="p-4">Name</th>
                 <th className="p-4">Nickname</th>
                 <th className="p-4">Phone</th>
-                <th className="p-4">Role</th>
-                <th className="p-4">Division</th>
+                <th className="p-4">Division / Role</th>
                 <th className="p-4 text-right">Aksi</th>
               </tr>
             </thead>
@@ -107,8 +128,7 @@ export const Members: React.FC = () => {
                   <td className="p-4 font-medium text-slate-900">{c.name}</td>
                   <td className="p-4">{c.nickname || '-'}</td>
                   <td className="p-4 font-mono text-xs">{c.phone}</td>
-                  <td className="p-4">{c.role || '-'}</td>
-                  <td className="p-4">{c.division || '-'}</td>
+                  <td className="p-4">{[c.division, c.role].filter(Boolean).join(' / ') || '-'}</td>
                   <td className="p-4 text-right whitespace-nowrap">
                     <button onClick={() => openEdit(c)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-3">Edit</button>
                     <button
@@ -135,8 +155,6 @@ export const Members: React.FC = () => {
               ['name', 'Nama', true],
               ['nickname', 'Nickname', false],
               ['phone', 'Phone (62…)', true],
-              ['role', 'Role (mis. PIC / member)', false],
-              ['division', 'Divisi', false],
             ].map(([key, label, req]) => (
               <label key={key as string} className="block">
                 <span className="text-xs font-semibold text-slate-500 uppercase">{label}{req ? ' *' : ''}</span>
@@ -148,6 +166,28 @@ export const Members: React.FC = () => {
                 />
               </label>
             ))}
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-500 uppercase">Divisi</span>
+              <select
+                value={form.division}
+                onChange={(e) => setForm({ ...form, division: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">Pilih divisi</option>
+                {DIVISIONS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-slate-500 uppercase">Role</span>
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">Pilih role</option>
+                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </label>
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg border border-slate-300 text-sm">Batal</button>
               <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">
