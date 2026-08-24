@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict, Any
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.admin.auth import verify_token
@@ -6,6 +7,8 @@ from app.notion.ticket_service import (
     query_tickets_direct,
     create_ticket_direct,
     update_ticket_direct,
+    get_ticket_detail,
+    get_ticket_blocks,
     add_ticket_note,
     add_ticket_comment,
 )
@@ -87,6 +90,56 @@ async def create_ticket(req: TicketCreateRequest, current_user: str = Depends(ve
         pic_id=req.pic_id,
     )
     return {"data": res, "error": None, "message": "Ticket created"}
+
+
+@router.get("/notion/tickets/{page_id}")
+async def get_ticket(page_id: str, current_user: str = Depends(verify_token)):
+    try:
+        page = await get_ticket_detail(page_id)
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail="Notion API error")
+    if "id" not in page:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    props = page.get("properties", {})
+    people = props.get("PIC", {}).get("people") or []
+    relation = props.get("PIC", {}).get("relation") or []
+
+    def _plain(rt_list):
+        return "".join(t.get("plain_text", "") for t in rt_list or [])
+
+    rich_content = []
+    try:
+        blocks = await get_ticket_blocks(page_id)
+        for b in blocks.get("results", []):
+            text = _plain(b.get(b.get("type", ""), {}).get("rich_text"))
+            if text:
+                rich_content.append({"type": b.get("type"), "text": text})
+    except Exception:
+        pass  # ponytail: blocks optional; add pagination when tickets exceed 100 blocks
+
+    data = {
+        "id": page.get("id"),
+        "ticket_id": _plain(props.get("ID", {}).get("rich_text")),
+        "title": _plain(props.get("Name", {}).get("title")),
+        "status": (props.get("Status", {}).get("status") or {}).get("name"),
+        "priority": (props.get("Priority", {}).get("select") or {}).get("name"),
+        "division": (props.get("Division", {}).get("select") or {}).get("name"),
+        "pic": (
+            [{"id": p.get("id"), "name": p.get("name")} for p in people]
+            if people
+            else [{"id": r.get("id")} for r in relation]
+        ),
+        "assignee": [
+            {"id": p.get("id"), "name": p.get("name")}
+            for p in (props.get("Assignee", {}).get("people") or [])
+        ],
+        "created_time": page.get("created_time"),
+        "last_edited_time": page.get("last_edited_time"),
+        "url": page.get("url"),
+        "rich_content": rich_content,
+    }
+    return {"data": data, "error": None, "message": "Ticket detail fetched"}
 
 
 @router.patch("/notion/tickets/{page_id}")

@@ -87,6 +87,10 @@ async def get_ticket_detail(page_id: str) -> Dict[str, Any]:
     return await client.request("GET", f"/pages/{page_id}")
 
 
+async def get_ticket_blocks(page_id: str) -> Dict[str, Any]:
+    return await client.request("GET", f"/blocks/{page_id}/children")
+
+
 async def update_ticket_direct(page_id: str, properties: Dict[str, Any]) -> Dict[str, Any]:
     res = await client.request("PATCH", f"/pages/{page_id}", body={"properties": properties})
     client.clear_cache()
