@@ -195,7 +195,7 @@ def create_contact(req: ContactCreateRequest, current_user: str = Depends(verify
 
 @router.put("/contacts/{phone}")
 def update_contact(phone: str, req: ContactUpdateRequest, current_user: str = Depends(verify_token)):
-    contact = add_or_update_contact(req.name or phone, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
+    contact = add_or_update_contact(req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
     return {"data": contact, "error": None, "message": "Contact updated"}
 
 

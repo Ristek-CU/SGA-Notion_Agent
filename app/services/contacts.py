@@ -118,7 +118,7 @@ def get_full_name(identifier: str) -> str:
     return identifier
 
 
-def add_or_update_contact(name: str, phone: str, role: Optional[str] = None, division: Optional[str] = None, nickname: Optional[str] = None, telegram: Optional[str] = None) -> Dict[str, Any]:
+def add_or_update_contact(name: Optional[str], phone: str, role: Optional[str] = None, division: Optional[str] = None, nickname: Optional[str] = None, telegram: Optional[str] = None) -> Dict[str, Any]:
     contacts = load_contacts()
     norm_phone = normalize_phone(phone)
     updated = False
