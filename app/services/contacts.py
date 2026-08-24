@@ -122,7 +122,10 @@ def add_or_update_contact(name: str, phone: str, role: Optional[str] = None, div
     contacts = load_contacts()
     norm_phone = normalize_phone(phone)
     updated = False
-    new_contact = {"name": name, "phone": norm_phone}
+    clear_telegram = False
+    new_contact = {"phone": norm_phone}
+    if name:
+        new_contact["name"] = name
     if role:
         new_contact["role"] = role
     if division:
@@ -134,10 +137,12 @@ def add_or_update_contact(name: str, phone: str, role: Optional[str] = None, div
         if t:
             new_contact["telegram"] = t
         else:
-            new_contact.pop("telegram", None)
+            clear_telegram = True
 
     for idx, c in enumerate(contacts):
         if normalize_phone(c.get("phone", "")) == norm_phone:
+            if clear_telegram:
+                c.pop("telegram", None)
             contacts[idx].update(new_contact)
             updated = True
             new_contact = contacts[idx]
