@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.config import settings
 from app.webhook.handler import router as webhook_router
+from app.telegram.bot import router as telegram_router
 from app.admin.api import admin_router
 from app.notion.core import NotionClient
 from app.services.session import session_manager
@@ -23,6 +24,7 @@ app = FastAPI(
 
 # Include Routers
 app.include_router(webhook_router)
+app.include_router(telegram_router)
 app.include_router(admin_router)
 
 

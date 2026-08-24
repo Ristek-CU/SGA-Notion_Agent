@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     admin_user: str = "admin"
     admin_password: str = "admin123"
     jwt_secret: str = "supersecretjwtkey"
+    backend_public_url: str = "https://notion-api.sudobrew.dev"
 
     model_config = SettingsConfigDict(
         env_file=".env",
