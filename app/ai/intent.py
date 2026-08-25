@@ -14,6 +14,50 @@ def _page_title(pg: Dict[str, Any]) -> str:
     return ""
 
 
+async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
+    """Kumpulkan data tiket live utk diinjeksi ke konteks LLM."""
+    try:
+        from app.notion import ticket_service as T
+        from app.notion import org_service as O
+        from app.services.contacts import load_contacts
+
+        pages = await T.query_tickets_direct()
+        mems = await O.list_members()
+        nick = (sender_info.get("nickname") or "").lower()
+
+        # page-id member milik pengirim (via nama kontak)
+        my_member_id = None
+        name2nick = {}
+        for c in load_contacts():
+            name2nick[(c.get("name") or "").lower()] = (c.get("nickname") or "").lower()
+        for pg in mems:
+            t = None
+            for v in pg.get("properties", {}).values():
+                tt = v.get("title", [])
+                if tt:
+                    t = tt[0].get("plain_text", "")
+                    break
+            if t and name2nick.get(t.lower()) == nick and nick:
+                my_member_id = pg["id"]
+                break
+
+        mine, others = [], []
+        for p in pages[:60]:
+            e = T._extract(p)
+            line = f"- {e['title']} (status: {e['status']}, prioritas: {e['priority'] or '-'})"
+            if my_member_id and my_member_id in e["pic_ids"]:
+                mine.append(line)
+            else:
+                others.append(line)
+        ctx = ""
+        if mine:
+            ctx += "\n\nTASK MILIK USER INI (PIC = dirinya):\n" + "\n".join(mine[:20])
+        ctx += "\n\nTIKET BACKLOG TERBARU (semua orang):\n" + "\n".join(others[:20])
+        return ctx
+    except Exception:
+        return ""
+
+
 async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str:
     # 1. Ekstrak intent via AI
     messages = [
@@ -75,7 +119,7 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
         pass
 
     # Fallback to AI chat response if extraction fails
-    return await handle_chat(message, sender_info)
+    return await handle_chat_with_context(message, sender_info)
 
 
 async def handle_chat(message: str, sender_info: Dict[str, Any]) -> str:
@@ -108,5 +152,31 @@ async def handle_chat(message: str, sender_info: Dict[str, Any]) -> str:
         if not messages or messages[-1] != {"role": "user", "content": message}:
             messages.append({"role": "user", "content": message})
 
+    reply = await create_message(messages, system=sys, max_tokens=800)
+    return reply.strip() or "Maaf, coba ulangi pertanyaannya ya."
+
+
+async def handle_chat_with_context(message: str, sender_info: Dict[str, Any]) -> str:
+    """handle_chat + injeksi data tiket live — bot jawab pertanyaan data dgn bahasa natural."""
+    task_ctx = await _gather_task_context(sender_info)
+    if not task_ctx:
+        return await handle_chat(message, sender_info)
+    try:
+        from app.services.session import session_manager
+        sess = await session_manager.get_session(sender_info["phone"])
+        history = [
+            {"role": m["role"], "content": m["content"]}
+            for m in (sess.messages if sess else [])[-8:]
+            if m.get("role") in ("user", "assistant") and m.get("content")
+        ] or []
+    except Exception:
+        history = []
+    sys = (
+        f"{SYSTEM_PROMPT}\nKamu punya akses data tiket live berikut. "
+        f"Gunakan untuk menjawab pertanyaan soal task/tiket dengan bahasa natural — "
+        f"JANGAN suruh user ketik perintah kalau kamu sudah bisa jawab langsung dari data ini."
+        f"{task_ctx}"
+    )
+    messages = history + [{"role": "user", "content": message}]
     reply = await create_message(messages, system=sys, max_tokens=800)
     return reply.strip() or "Maaf, coba ulangi pertanyaannya ya."
