@@ -30,6 +30,26 @@ async def send_telegram_message(chat_id: Any, text: str) -> dict:
     return await tg_call(token, "sendMessage", {"chat_id": chat_id, "text": text})
 
 
+async def send_typing(chat_id: Any):
+    """Kirim action 'typing' sekali (berlaku ~5 detik)."""
+    try:
+        token = await get_platform_token("telegram")
+        if token:
+            await tg_call(token, "sendChatAction", {"chat_id": chat_id, "action": "typing"})
+    except Exception:
+        pass
+
+
+async def _typing_loop(chat_id: Any, stop: asyncio.Event):
+    """Kirim ulang 'typing' tiap 4 detik sampai balasan siap."""
+    while not stop.is_set():
+        await send_typing(chat_id)
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=4.0)
+        except asyncio.TimeoutError:
+            pass
+
+
 @router.post("/webhook/telegram/{token}")
 async def telegram_webhook(token: str, request: Request):
     expected = await get_platform_token("telegram")
@@ -63,15 +83,22 @@ async def _process_and_reply(norm: dict, chat_id: str):
 
     reply_override mengarahkan semua balasan non-group ke Telegram tanpa
     monkeypatch global (aman terhadap pesan concurrent).
+    Selama memproses, tampilkan indikator 'typing...' di profil bot.
     """
     from app.webhook.handler import process_incoming_message
 
+    stop = asyncio.Event()
+    typing_task = asyncio.create_task(_typing_loop(chat_id, stop))
     sent: list = []
 
     async def tg_send(remote_jid, text, **kw):
         sent.append(text)
 
-    await process_incoming_message(norm, reply_override=tg_send)
+    try:
+        await process_incoming_message(norm, reply_override=tg_send)
+    finally:
+        stop.set()
+        typing_task.cancel()
 
     for text in sent:
         await send_telegram_message(chat_id, text)
