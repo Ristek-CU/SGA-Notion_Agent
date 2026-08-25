@@ -1,4 +1,5 @@
 import random
+import re
 import string
 from typing import List, Dict, Any, Optional
 from app.notion.core import NotionClient
@@ -11,6 +12,31 @@ client = NotionClient(
     max_retries=settings.notion_max_retries,
 )
 
+# Status valid di DB Tiket (type: status)
+VALID_STATUSES = ["Not started", "Blocking", "In progress", "Need to review", "Need to fix", "Done"]
+
+# Alias input user -> nama status Notion
+STATUS_ALIASES = {
+    "todo": "Not started",
+    "notstarted": "Not started",
+    "belum": "Not started",
+    "inprogress": "In progress",
+    "doing": "In progress",
+    "proses": "In progress",
+    "review": "Need to review",
+    "needtoreview": "Need to review",
+    "fix": "Need to fix",
+    "needtofix": "Need to fix",
+    "blocked": "Blocking",
+    "done": "Done",
+    "selesai": "Done",
+}
+
+
+def normalize_status(user_status: str) -> str:
+    key = re.sub(r"[^a-z]", "", (user_status or "").lower())
+    return STATUS_ALIASES.get(key, user_status)
+
 
 def generate_ticket_id() -> str:
     rand = "".join(random.choices(string.ascii_uppercase + string.digits, k=3))
@@ -19,11 +45,29 @@ def generate_ticket_id() -> str:
     return f"TK-{today}-{rand}"
 
 
+async def resolve_division_id(name: Optional[str]) -> Optional[str]:
+    """Cari page-id divisi di DB Divisions berdasarkan nama (fuzzy contains)."""
+    if not name or not settings.notion_divisions_id:
+        return None
+    try:
+        pages = await client.query_all(f"/databases/{settings.notion_divisions_id}/query")
+        q = name.strip().lower()
+        for p in pages:
+            props = p.get("properties", {})
+            for v in props.values():
+                t = v.get("title", [])
+                if t and q in t[0].get("plain_text", "").lower():
+                    return p["id"]
+        return None
+    except Exception:
+        return None
+
+
 async def create_ticket_direct(
     title: str,
     division: Optional[str] = None,
     priority: str = "Medium",
-    status: str = "To Do",
+    status: str = "Not started",
     description: Optional[str] = None,
     pic_id: Optional[str] = None,
     database_id: Optional[str] = None,
@@ -33,28 +77,63 @@ async def create_ticket_direct(
 
     properties: Dict[str, Any] = {
         "Name": {"title": [{"text": {"content": title}}]},
-        "ID": {"rich_text": [{"text": {"content": ticket_id}}]},
         "Status": {"status": {"name": status}},
-        "Priority": {"select": {"name": priority}},
+        "Priority Level": {"select": {"name": priority if priority in ("High", "Medium", "Low") else "Medium"}},
     }
 
-    if division:
-        properties["Division"] = {"select": {"name": division}}
-
+    # Deskripsi ditulis sebagai isi halaman (DB tak punya properti Description)
+    children = []
     if description:
-        properties["Description"] = {"rich_text": [{"text": {"content": description}}]}
+        children.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"type": "text", "text": {"content": description}}]},
+        })
 
-    if pic_id:
-        properties["PIC"] = {"relation": [{"id": pic_id}]}
-
-    body = {
+    body: Dict[str, Any] = {
         "parent": {"database_id": db_id},
         "properties": properties,
     }
+    if children:
+        body["children"] = children
 
     res = await client.request("POST", "/pages", body=body)
     client.clear_cache()
     return {"ticket_id": ticket_id, "page": res}
+
+
+def _extract(page: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalisasi satu page tiket sesuai skema asli."""
+    props = page.get("properties", {})
+    t = props.get("Name", {}).get("title", [])
+    st = props.get("Status", {}).get("status", {}).get("name", "?")
+    pr = props.get("Priority Level", {}).get("select", {}).get("name")
+    pic_ids = [r.get("id") for r in props.get("PIC", {}).get("relation", [])]
+    div_ids = [r.get("id") for r in props.get("🧏‍♀️ Divisions", {}).get("relation", [])]
+    created = props.get("Created time", {}).get("created_time", "")
+    return {
+        "page_id": page.get("id"),
+        "ticket_id": None,  # DB tak punya properti ID; pakai page id
+        "title": t[0].get("plain_text", "") if t else "",
+        "status": st,
+        "priority": pr,
+        "pic_ids": pic_ids,
+        "division_ids": div_ids,
+        "created": created,
+    }
+
+
+def _find_by_ticket_prefix(pages: List[Dict[str, Any]], tid: str) -> Optional[Dict[str, Any]]:
+    """User bisa memakai TK-xxx yang kami generate saat create (disimpan di teks judul)
+    atau potongan page-id. Cocokkan longgar."""
+    tl = tid.lower()
+    for p in pages:
+        e = _extract(p)
+        if tl in (e["page_id"] or "").lower():
+            return p
+        if e["title"].lower().startswith(tl):
+            return p
+    return None
 
 
 async def query_tickets_direct(
@@ -68,7 +147,7 @@ async def query_tickets_direct(
     if status:
         filters.append({"property": "Status", "status": {"equals": status}})
     if division:
-        filters.append({"property": "Division", "select": {"equals": division}})
+        filters.append({"property": "🧏‍♀️ Divisions", "select": {"equals": division}})
 
     body = {}
     if len(filters) == 1:
@@ -76,9 +155,6 @@ async def query_tickets_direct(
     elif len(filters) > 1:
         body["filter"] = {"and": filters}
 
-    cache_key = f"tickets:{db_id}:{status}:{division}"
-    
-    # Check cache via client request if caching desired, or query_all directly
     results = await client.query_all(f"/databases/{db_id}/query", body=body)
     return results
 
@@ -115,7 +191,6 @@ async def add_ticket_note(page_id: str, note_text: str) -> Dict[str, Any]:
 async def add_ticket_comment(page_id: str, comment_text: str) -> Dict[str, Any]:
     body = {
         "parent": {"page_id": page_id},
-        "discussion_id": "",
         "rich_text": [{"text": {"content": comment_text}}],
     }
     return await client.request("POST", "/comments", body=body)

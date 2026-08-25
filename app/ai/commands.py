@@ -98,16 +98,16 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
                 description=f"Dibuat via bot oleh {sender_info.get('nickname', 'unknown')}",
                 pic_id=pic_id,
             )
-            tid = res.get("ticket_id", "?")
+            page_id = res["page"]["id"]
             out = (
                 f"✅ *Tiket berhasil dibuat!*\n"
-                f"• *ID:* {tid}\n"
                 f"• *Judul:* {title}\n"
                 f"• *Divisi:* {division or 'Unassigned'}\n"
-                f"• *Status:* To Do"
+                f"• *Status:* Not started"
             )
             if pic_id and pic_name:
                 out += f"\n• *PIC:* @{pic_name}"
+            out += f"\nCek: `detail tiket {page_id[:8]}`"
             return out
         except Exception as e:
             return f"⚠️ Gagal membuat tiket ke Notion: {type(e).__name__}. Coba lagi sebentar ya."
@@ -120,8 +120,8 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
                 return "📋 Belum ada tiket di backlog."
             lines = ["📋 *Daftar Tiket Terbaru:*"]
             for p in pages:
-                st = _prop(p, "Status").get("status", {}).get("name", "?")
-                lines.append(f"- `{_tid_of(p)}` {_title_of(p)} ({st})")
+                e = T._extract(p)
+                lines.append(f"- `{(e['page_id'] or '?')[:8]}` {e['title'][:40]} ({e['status']})")
             return "\n".join(lines)
         except Exception as e:
             return f"⚠️ Gagal mengambil tiket: {type(e).__name__}"
@@ -163,41 +163,39 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
         tid = args.get("ticket_id", "")
         try:
             pages = await T.query_tickets_direct()
-            page = next((p for p in pages if _tid_of(p).lower() == tid.lower()), None)
+            page = T._find_by_ticket_prefix(pages, tid)
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan. Cek `list tiket` dulu ya."
-            pr = _prop(page, "Priority").get("select", {})
-            dv = _prop(page, "Division").get("select", {})
-            st = _prop(page, "Status").get("status", {}).get("name", "?")
+            e = T._extract(page)
             return (
-                f"🔍 *Detail Tiket {_tid_of(page)}*\n"
-                f"• Judul: {_title_of(page)}\n"
-                f"• Status: {st}\n"
-                f"• Prioritas: {pr.get('name', '-')} | Divisi: {dv.get('name', '-')}"
+                f"🔍 *Detail Tiket*\n"
+                f"• Judul: {e['title']}\n"
+                f"• Status: {e['status']}\n"
+                f"• Prioritas: {e['priority'] or '-'}\n"
+                f"• ID: `{(e['page_id'] or '?')[:8]}`"
             )
         except Exception as e:
             return f"⚠️ Gagal ambil detail: {type(e).__name__}"
 
     if cmd_type == "update_status":
         tid, status = args.get("ticket_id", ""), args.get("status", "")
-        valid = {"todo": "To Do", "inprogress": "In Progress", "doing": "In Progress",
-                 "done": "Done", "selesai": "Done", "review": "In Review", "blocked": "Blocked"}
-        status_name = valid.get(re.sub(r"[^a-z]", "", status.lower()), status)
+        status_name = T.normalize_status(status)
         try:
             pages = await T.query_tickets_direct()
-            page = next((p for p in pages if _tid_of(p).lower() == tid.lower()), None)
+            page = T._find_by_ticket_prefix(pages, tid)
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan."
             await T.update_ticket_direct(page["id"], {"Status": {"status": {"name": status_name}}})
-            return f"✅ Status `{_tid_of(page)}` sekarang *{status_name}*."
+            e = T._extract(page)
+            return f"✅ Status *{e['title'][:40]}* sekarang *{status_name}*."
         except Exception as e:
-            return f"⚠️ Gagal update status: {type(e).__name__} — pastikan nama status sesuai opsi di Notion."
+            return f"⚠️ Gagal update status: {type(e).__name__} — opsi valid: {', '.join(T.VALID_STATUSES)}."
 
     if cmd_type == "assign_pic":
         tid, pic_name = args.get("ticket_id", ""), (args.get("pic_name") or "").strip().lstrip("@")
         try:
             pages = await T.query_tickets_direct()
-            page = next((p for p in pages if _tid_of(p).lower() == tid.lower()), None)
+            page = T._find_by_ticket_prefix(pages, tid)
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan."
             mems = await O.list_members()
@@ -209,7 +207,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             if not target:
                 return f"👤 Anggota \"{pic_name}\" tidak ditemukan di DB Members."
             await T.update_ticket_direct(page["id"], {"PIC": {"relation": [{"id": target["id"]}]}})
-            return f"👤 `{_tid_of(page)}` berhasil di-assign ke *{_title_of(target)}*."
+            return f"👤 Tiket *{_title_of(page)[:40]}* berhasil di-assign ke *{_title_of(target)}*."
         except Exception as e:
             return f"⚠️ Gagal assign PIC: {type(e).__name__}"
 
