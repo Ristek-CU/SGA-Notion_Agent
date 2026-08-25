@@ -1,8 +1,9 @@
 import json
 import re
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 from app.ai.client import create_message
 from app.ai.prompts import SYSTEM_PROMPT, EXTRACTION_PROMPT, CHAT_PROMPT
+import app.notion.ticket_service as T
 from app.notion.ticket_service import create_ticket_direct, resolve_division_id
 
 
@@ -70,12 +71,44 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
         end = raw_res.rfind("}") + 1
         if start != -1 and end != -1:
             parsed = json.loads(raw_res[start:end])
+            action = (parsed.get("action") or ("create" if parsed.get("title") else "none")).lower()
             title = parsed.get("title")
             div = parsed.get("division")
-            prio = parsed.get("priority", "Medium")
+            prio = parsed.get("priority", "Medium") or "Medium"
             desc = parsed.get("description")
 
-            if title:
+            if action in ("rename", "rename_and_status") and title:
+                # cari tiket by judul (fuzzy contains, case-insensitive)
+                pages = await T.query_tickets_direct()
+                tl = title.lower().strip()
+                page = next((p for p in pages
+                             if tl in T._extract(p)["title"].lower()
+                             or T._extract(p)["title"].lower() in tl), None)
+                if not page:
+                    return f"Tiket \"{title}\" tidak ketemu di backlog. Cek judulnya atau kirim `list tiket` ya."
+                new_props: Dict[str, Any] = {}
+                new_title = parsed.get("new_title")
+                if action == "rename" and not new_title:
+                    return "Judul barunya apa? Contoh: `ganti nama tiket testing Roro jadi Testing Roro v2`"
+                if new_title:
+                    new_props["Name"] = {"title": [{"text": {"content": new_title}}]}
+                if action in ("update_status", "rename_and_status"):
+                    st = T.normalize_status(parsed.get("new_status") or "")
+                    if not st:
+                        return "Statusnya belum kebaca. Sebutkan misal: not started / in progress / done."
+                    new_props["Status"] = {"status": {"name": st}}
+                await T.update_ticket_direct(page["id"], new_props)
+                e = T._extract(page)
+                parts = ["✅ *Tiket berhasil diupdate!*", f"• *Judul:* {T._extract(page)['title']}"]
+                if new_title:
+                    parts.append(f"• *Nama lama:* {e['title']}")
+                if "Status" in new_props:
+                    st = (new_props["Status"]["status"]["name"])
+                    parts.append(f"• *Status:* {st}")
+                parts.append(f"Cek: `detail tiket {page['id'][:8]}`")
+                return "\n".join(parts)
+
+            if action == "create" and title:
                 # @mention di kalimat natural -> PIC (nickname atau nama, via kontak)
                 pic_id = None
                 pic_name = None

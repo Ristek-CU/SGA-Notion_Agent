@@ -15,15 +15,10 @@ Gaya menjawab:
 3. Kalau user sepakat ingin membuat task/tiket, pandu lewat perintah bot (contoh: `buat tiket <judul>`).
 4. Jangan pernah mengarang data internal (nomor tiket, nama anggota) — kalau tidak yakin, bilang jujur dan sarankan perintah seperti `list tiket`."""
 
-EXTRACTION_PROMPT = """Ekstrak informasi pembuatan tiket dari pesan berikut. Balas HANYA satu objek JSON valid, TANPA teks lain, TANPA markdown:
-- title: string (judul singkat tiket)
-- division: string (salah satu dari: BPH, Media and Information, Research and Technology, Public and Community Relationship, UKM Development, Business And Partnership, Intellectual and Career Development, Student Advocacy and Welfare; atau null)
-- priority: string (High, Medium, Low, default Medium)
-- description: string (deskripsi tambahan jika ada)
-
-Contoh Output JSON:
-{"title": "Fix bug login website", "division": "Research and Technology", "priority": "High", "description": "User gagal login saat OTP"}
-"""
+EXTRACTION_PROMPT = """Klasifikasi permintaan user terhadap tiket backlog. Balas HANYA satu objek JSON valid, TANPA teks lain, TANPA markdown:
+{"action":"create|rename|update_status|rename_and_status|none","title":"judul tiket persis seperti disebut user","new_title":"judul baru (rename saja)","new_status":"Not started|In progress|Need to review|Need to fix|Done|Blocking (update_status/rename_and_status saja)","division":null,"priority":"Medium","description":null}
+division pilih salah satu: BPH, Media and Information, Research and Technology, Public and Community Relationship, UKM Development, Business And Partnership, Intellectual and Career Development, Student Advocacy and Welfare.
+Aturan: minta buat tiket -> create; ganti judul/nama -> rename; ubah status -> update_status; keduanya sekaligus -> rename_and_status; bukan perubahan data (tanya/cari/obrolan) -> none dengan title null."""
 
 CHAT_PROMPT = """Tangapi pesan user berikut sebagai asisten Notion SGA dengan singkat dan lugas."""
 
