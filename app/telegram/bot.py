@@ -4,6 +4,9 @@ Reuses process_incoming_message() dari app/webhook/handler.py sehingga
 pipeline AI/guard/session identik dengan WhatsApp.
 """
 import asyncio
+import html as _html
+import re as _re
+
 import httpx
 from typing import Dict, Any
 from fastapi import APIRouter, Request
@@ -23,11 +26,31 @@ async def tg_call(token: str, method: str, payload: Dict[str, Any] | None = None
         return data.get("result", {})
 
 
+_MD_BOLD = _re.compile(r"\*([^*\n]+)\*")
+
+
+def _wa_md_to_tg_html(text: str) -> str:
+    """Balasan bot ditulis dgn markdown gaya WA (*bold*, `mono`).
+    Konversi ke HTML parse_mode Telegram; fallback plain kalau invalid."""
+    out = _html.escape(text, quote=False)
+    out = _MD_BOLD.sub(r"<b>\1</b>", out)
+    out = _re.sub(r"`([^`\n]+)`", r"<code>\1</code>", out)
+    return out
+
+
 async def send_telegram_message(chat_id: Any, text: str) -> dict:
     token = await get_platform_token("telegram")
     if not token:
         raise RuntimeError("Telegram platform disabled or bot_token not configured")
-    return await tg_call(token, "sendMessage", {"chat_id": chat_id, "text": text})
+    try:
+        return await tg_call(token, "sendMessage",
+                             {"chat_id": chat_id, "text": _wa_md_to_tg_html(text),
+                              "parse_mode": "HTML",
+                              # ponytail: link_preview off utk semua balasan bot — add toggle when needed
+                              "link_preview_options": {"is_disabled": True}})
+    except RuntimeError:
+        # markup tak valid (mis. AI ngasih tag aneh) -> kirim polos
+        return await tg_call(token, "sendMessage", {"chat_id": chat_id, "text": text})
 
 
 async def send_typing(chat_id: Any):
