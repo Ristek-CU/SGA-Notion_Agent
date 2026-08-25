@@ -105,8 +105,10 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
                 f"• *Divisi:* {division or 'Unassigned'}\n"
                 f"• *Status:* Not started"
             )
+            if pic_name and not pic_id:
+                out += f"\n⚠️ @{pic_name} tidak ditemukan di daftar anggota — tiket dibuat tanpa PIC."
             if pic_id and pic_name:
-                out += f"\n• *PIC:* @{pic_name}"
+                out += f"\n• *PIC:* {pic_name}"
             out += f"\nCek: `detail tiket {page_id[:8]}`"
             return out
         except Exception as e:

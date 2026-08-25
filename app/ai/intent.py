@@ -65,6 +65,8 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                     f"• *Prioritas:* {prio}\n"
                     f"• *Status:* Not started"
                 )
+                if pic_name and not pic_id:
+                    out += f"\n⚠️ @{pic_name} tidak ditemukan di daftar anggota — tiket dibuat tanpa PIC."
                 if pic_id and pic_name:
                     out += f"\n• *PIC:* {pic_name}"
                 out += f"\nCek: `detail tiket {page_id[:8]}`"
