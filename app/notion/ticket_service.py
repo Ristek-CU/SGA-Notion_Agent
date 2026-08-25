@@ -71,6 +71,7 @@ async def create_ticket_direct(
     description: Optional[str] = None,
     pic_id: Optional[str] = None,
     database_id: Optional[str] = None,
+    division_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     db_id = database_id or settings.notion_database_id
     ticket_id = generate_ticket_id()
@@ -80,6 +81,12 @@ async def create_ticket_direct(
         "Status": {"status": {"name": status}},
         "Priority Level": {"select": {"name": priority if priority in ("High", "Medium", "Low") else "Medium"}},
     }
+
+    if pic_id:
+        properties["PIC"] = {"relation": [{"id": pic_id}]}
+
+    if division_id:
+        properties["🧏‍♀️ Divisions"] = {"relation": [{"id": division_id}]}
 
     # Deskripsi ditulis sebagai isi halaman (DB tak punya properti Description)
     children = []
@@ -147,8 +154,7 @@ async def query_tickets_direct(
 
     if status:
         filters.append({"property": "Status", "status": {"equals": status}})
-    if division:
-        filters.append({"property": "🧏‍♀️ Divisions", "select": {"equals": division}})
+    # ponytail: filter divisi dilewati (relation perlu page-id, bukan nama) — add when needed
 
     body = {}
     if len(filters) == 1:

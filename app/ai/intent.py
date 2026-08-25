@@ -1,8 +1,17 @@
 import json
+import re
 from typing import Dict, Any, List
 from app.ai.client import create_message
 from app.ai.prompts import SYSTEM_PROMPT, EXTRACTION_PROMPT, CHAT_PROMPT
-from app.notion.ticket_service import create_ticket_direct
+from app.notion.ticket_service import create_ticket_direct, resolve_division_id
+
+
+def _page_title(pg: Dict[str, Any]) -> str:
+    for v in pg.get("properties", {}).values():
+        t = v.get("title", [])
+        if t:
+            return t[0].get("plain_text", "")
+    return ""
 
 
 async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str:
@@ -23,21 +32,43 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
             desc = parsed.get("description")
 
             if title:
-                # Direct creation if title found
+                # @mention di kalimat natural -> PIC (nickname atau nama, via kontak)
+                pic_id = None
+                pic_name = None
+                m = re.search(r"@([A-Za-z0-9_.\-]+)", message)
+                if m:
+                    from app.services.contacts import load_contacts
+                    from app.notion import org_service as O
+                    handle = m.group(1).lower()
+                    contact = next((c for c in load_contacts()
+                                    if handle in ((c.get("nickname") or "").lower(), (c.get("name") or "").lower())), None)
+                    if contact:
+                        mems = await O.list_members()
+                        target = next((pg for pg in mems if _page_title(pg).lower() == (contact.get("name") or "").lower()), None)
+                        if target:
+                            pic_id = target["id"]
+                            pic_name = contact.get("name")
+                div_id = await resolve_division_id(div)
                 res = await create_ticket_direct(
                     title=title,
                     division=div,
                     priority=prio,
                     description=desc,
+                    pic_id=pic_id,
+                    division_id=div_id,
                 )
-                tid = res.get("ticket_id")
-                return (
+                page_id = res["page"]["id"]
+                out = (
                     f"✅ *Tiket Otomatis Dibuat!*\n"
-                    f"• *ID:* {tid}\n"
                     f"• *Judul:* {title}\n"
                     f"• *Divisi:* {div or 'Unassigned'}\n"
-                    f"• *Prioritas:* {prio}"
+                    f"• *Prioritas:* {prio}\n"
+                    f"• *Status:* Not started"
                 )
+                if pic_id and pic_name:
+                    out += f"\n• *PIC:* {pic_name}"
+                out += f"\nCek: `detail tiket {page_id[:8]}`"
+                return out
     except Exception:
         pass
 
