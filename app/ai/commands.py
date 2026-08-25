@@ -1,6 +1,8 @@
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+import app.notion.ticket_service as T  # noqa: F401 (dipakai _resolve_ticket & type hints)
+
 COMMAND_PATTERNS = [
     ("help", r"^(help|bantuan|\?)$"),
     ("stats", r"^(stats|statistik|summary|ringkasan)$"),
