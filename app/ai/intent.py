@@ -91,12 +91,13 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
             desc = parsed.get("description")
 
             if action in ("rename", "rename_and_status") and title:
-                # cari tiket by judul (fuzzy contains, case-insensitive)
+                # cari tiket by judul/kode (resolver sama dgn jalur perintah)
+                from app.ai.commands import _resolve_ticket
                 pages = await T.query_tickets_direct()
-                tl = title.lower().strip()
-                page = next((p for p in pages
-                             if tl in T._extract(p)["title"].lower()
-                             or T._extract(p)["title"].lower() in tl), None)
+                page, ambig = _resolve_ticket(pages, title)
+                if ambig:
+                    opts = "\n".join(f"- {t}" for t in ambig)
+                    return f"🤔 Ada beberapa tiket mirip \"{title}\" — maksudmu yang mana?\n{opts}"
                 if not page:
                     return f"Tiket \"{title}\" tidak ketemu di backlog. Cek judulnya atau kirim `list tiket` ya."
                 new_props: Dict[str, Any] = {}

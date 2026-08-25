@@ -1,5 +1,5 @@
 import re
-from typing import Optional, Dict, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 COMMAND_PATTERNS = [
     ("help", r"^(help|bantuan|\?)$"),
@@ -7,8 +7,9 @@ COMMAND_PATTERNS = [
     ("list_tickets", r"^(list|daftar)\s+(tiket|ticket|backlog)"),
     ("my_tickets", r"^(tiket|tugas)\s+saya$"),
     ("create_ticket", r"^(buat|create|tambah)\s+(tiket|ticket)\s+(.+)"),
-    ("ticket_detail", r"^(detail|cek)\s+(tiket|ticket)\s+([a-zA-Z0-9\-]+)$"),
-    ("update_status", r"^(update|ubah)\s+status\s+([a-zA-Z0-9\-]+)\s+(.+)"),
+    ("ticket_detail", r"^(detail|cek)\s+(tiket|ticket)\s+(.+)$"),
+    # id/kode boleh 1 token; sisanya dianggap judul multi-kata
+    ("update_status", r"^(update|ubah)\s+status\s+(.+?)\s+(menjadi|jadi|ke|to|->)\s+(.+)$"),
     ("assign_pic", r"^(assign|tunjuk)\s+([a-zA-Z0-9\-]+)\s+(ke|to)\s+(.+)"),
     ("list_divisions", r"^(list|daftar)\s+(divisi|division)$"),
     ("list_members", r"^(list|daftar)\s+(member|anggota)$"),
@@ -31,12 +32,45 @@ def parse_command(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
                 kwargs["ticket_id"] = args[2]
             elif cmd_type == "update_status":
                 kwargs["ticket_id"] = args[1]
-                kwargs["status"] = args[2]
+                kwargs["status"] = args[3] if len(args) > 3 else args[-1]
             elif cmd_type == "assign_pic":
                 kwargs["ticket_id"] = args[1]
                 kwargs["pic_name"] = args[3]
             return cmd_type, kwargs
     return None
+
+
+def _norm_txt(s: str) -> str:
+    return " ".join((s or "").lower().split())
+
+
+def _resolve_ticket(pages: List[Dict[str, Any]], query: str):
+    """Urutan: kode/full-id -> judul sama persis -> mengandung satu sama lain.
+    Return (page, None) atau (None, daftar_kandidat_ambigu)."""
+    page = T._find_by_ticket_prefix(pages, query)
+    if page:
+        return page, None
+    q = _norm_txt(query)
+    if not q:
+        return None, []
+    titled = [(p, _norm_txt(T._extract(p)["title"])) for p in pages]
+    exact = [p for p, t in titled if t == q]
+    if len(exact) == 1:
+        return exact[0], None
+    cand = [(p, t) for p, t in titled if q and (q in t or t in q)]
+    if not cand:
+        return None, []
+    if len(cand) == 1:
+        return cand[0][0], None
+    uniq_titles = {t for _, t in cand}
+    if len(uniq_titles) == 1:
+        return cand[0][0], None
+    # ambigu: pilih yang paling pendek (paling spesifik utk query pendek),
+    # kalau seri panjangnya -> minta user perjelas
+    cand.sort(key=lambda x: len(x[1]))
+    if len(cand[0][1]) < len(cand[1][1]):
+        return cand[0][0], None
+    return None, [t for _, t in sorted(cand, key=lambda x: -len(x[1]))[:5]]
 
 
 def _prop(page: Dict[str, Any], key: str):
@@ -169,7 +203,10 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
         tid = args.get("ticket_id", "")
         try:
             pages = await T.query_tickets_direct()
-            page = T._find_by_ticket_prefix(pages, tid)
+            page, ambig = _resolve_ticket(pages, tid)
+            if ambig:
+                opts = "\n".join(f"- {t}" for t in ambig)
+                return f"🤔 Ada beberapa tiket mirip \"{tid}\" — maksudmu yang mana?\n{opts}"
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan. Cek `list tiket` dulu ya."
             e = T._extract(page)
@@ -190,7 +227,10 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             return f"⚠️ Status \"{status}\" tidak dikenali — opsi valid: {', '.join(T.VALID_STATUSES)}."
         try:
             pages = await T.query_tickets_direct()
-            page = T._find_by_ticket_prefix(pages, tid)
+            page, ambig = _resolve_ticket(pages, tid)
+            if ambig:
+                opts = "\n".join(f"- {t}" for t in ambig)
+                return f"🤔 Ada beberapa tiket mirip \"{tid}\" — maksudmu yang mana?\n{opts}"
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan."
             await T.update_ticket_direct(page["id"], {"Status": {"status": {"name": status_name}}})
@@ -203,7 +243,10 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
         tid, pic_name = args.get("ticket_id", ""), (args.get("pic_name") or "").strip().lstrip("@")
         try:
             pages = await T.query_tickets_direct()
-            page = T._find_by_ticket_prefix(pages, tid)
+            page, ambig = _resolve_ticket(pages, tid)
+            if ambig:
+                opts = "\n".join(f"- {t}" for t in ambig)
+                return f"🤔 Ada beberapa tiket mirip \"{tid}\" — maksudmu yang mana?\n{opts}"
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan."
             mems = await O.list_members()
