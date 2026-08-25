@@ -59,6 +59,21 @@ def get_all_contacts() -> List[Dict[str, Any]]:
     return load_contacts()
 
 
+def find_contact_by_telegram(username: str) -> Optional[Dict[str, Any]]:
+    """Cari kontak berdasar username telegram (tanpa @, lowercase, toleransi '_').
+    ponytail: prefix-match utk varian username; ganti exact bila data sudah rapi."""
+    if not username:
+        return None
+    u = username.strip().lower().lstrip("@").rstrip("_")
+    if not u:
+        return None
+    for c in load_contacts():
+        tg = (c.get("telegram") or "").strip().lower().lstrip("@").rstrip("_")
+        if tg and (tg == u or u.startswith(tg) or tg.startswith(u)):
+            return c
+    return None
+
+
 def find_contact_by_push_name(push_name: str) -> Optional[Dict[str, Any]]:
     if not push_name:
         return None

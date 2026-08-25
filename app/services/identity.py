@@ -12,8 +12,8 @@ _identity_cache: Dict[str, tuple[Dict[str, Any], float]] = {}
 CACHE_TTL = 1800.0  # 30 minutes
 
 
-def resolve_identity(raw_identifier: str, push_name: Optional[str] = None) -> Dict[str, Any]:
-    cache_key = f"{raw_identifier}:{push_name or ''}"
+def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, telegram_username: Optional[str] = None) -> Dict[str, Any]:
+    cache_key = f"{raw_identifier}:{push_name or ''}:{telegram_username or ''}"
     now = time.monotonic()
     
     if cache_key in _identity_cache:
@@ -27,8 +27,13 @@ def resolve_identity(raw_identifier: str, push_name: Optional[str] = None) -> Di
     matched_name = None
     matched_contact = None
 
+    # 0. Username Telegram -> kontak (field `telegram`)
+    if telegram_username:
+        from app.services.contacts import find_contact_by_telegram
+        matched_contact = find_contact_by_telegram(telegram_username)
+
     # 1. Hierarki: push_name -> phone lookup -> contact search
-    if push_name:
+    if not matched_contact and push_name:
         matched_contact = find_contact_by_push_name(push_name)
     
     if not matched_contact and phone:

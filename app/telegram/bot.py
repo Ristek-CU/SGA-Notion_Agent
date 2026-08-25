@@ -74,11 +74,12 @@ async def telegram_webhook(token: str, request: Request):
         "message": {"conversation": text},
         "pushName": frm.get("first_name") or frm.get("username"),
     }
-    asyncio.create_task(_process_and_reply(norm, str(chat.get("id"))))
+    tg_username = frm.get("username")
+    asyncio.create_task(_process_and_reply(norm, str(chat.get("id")), tg_username=tg_username))
     return {"status": "processing"}
 
 
-async def _process_and_reply(norm: dict, chat_id: str):
+async def _process_and_reply(norm: dict, chat_id: str, tg_username: str | None = None):
     """Jalankan pipeline WaHa lalu balas via Telegram sendMessage.
 
     reply_override mengarahkan semua balasan non-group ke Telegram tanpa
@@ -95,7 +96,7 @@ async def _process_and_reply(norm: dict, chat_id: str):
         sent.append(text)
 
     try:
-        await process_incoming_message(norm, reply_override=tg_send)
+        await process_incoming_message(norm, reply_override=tg_send, telegram_username=tg_username)
     finally:
         stop.set()
         typing_task.cancel()

@@ -61,7 +61,7 @@ async def _send(reply_override, remote_jid: str, text: str, instance_name: Optio
         await send_whatsapp_message(remote_jid, text, instance=instance_name)
 
 
-async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None):
+async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None, telegram_username: Optional[str] = None):
     key = data.get("key", {})
     msg_id = key.get("id")
     if not msg_id or await is_duplicate_msg(msg_id):
@@ -95,8 +95,8 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         if cached_phone:
             raw_sender = cached_phone
 
-    # Resolve sender identity
-    sender_info = resolve_identity(raw_sender, push_name=push_name)
+    # Resolve sender identity (Telegram username dipakai utk cocokkan kontak)
+    sender_info = resolve_identity(raw_sender, push_name=push_name, telegram_username=telegram_username)
 
     # Save user message to session
     await session_manager.save_user_message(sender_info["phone"], text)
