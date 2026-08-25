@@ -65,7 +65,20 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
         {"role": "user", "content": f"{EXTRACTION_PROMPT}\nPesan: {message}"}
     ]
     try:
-        raw_res = await create_message(messages, max_tokens=300)
+        raw_res = ""
+        for attempt in range(2):  # retry: 9router kadang memotong stream -> JSON invalid
+            try:
+                raw_res = await create_message(messages, max_tokens=400)
+                start = raw_res.find("{")
+                end = raw_res.rfind("}") + 1
+                if start != -1 and end != -1:
+                    break
+            except Exception:
+                if attempt == 0:
+                    import asyncio as _a
+                    await _a.sleep(2)
+        if not raw_res:
+            return await handle_chat_with_context(message, sender_info)
         # Parse JSON
         start = raw_res.find("{")
         end = raw_res.rfind("}") + 1

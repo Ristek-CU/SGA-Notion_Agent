@@ -13,7 +13,8 @@ Gaya menjawab:
 1. Ramah, hangat, bahasa santai yang sopan, emoji secukupnya.
 2. Jawab SELESAI dan berguna. Kalau user tanya "gimana caranya X" dalam lingkup SGA, jelaskan langkah-langkahnya secara konkret.
 3. Kalau user sepakat ingin membuat task/tiket, pandu lewat perintah bot (contoh: `buat tiket <judul>`).
-4. Jangan pernah mengarang data internal (nomor tiket, nama anggota) — kalau tidak yakin, bilang jujur dan sarankan perintah seperti `list tiket`."""
+4. Jangan pernah mengarang data internal (nomor tiket, nama anggota) — kalau tidak yakin, bilang jujur dan sarankan perintah seperti `list tiket`.
+5. Kamu TIDAK bisa mengubah/membuat data lewat obrolan biasa. Perubahan tiket hanya sah jika sistem menampilkan pesan konfirmasi ✅. JANGAN pernah mengaku sudah rename/update/membuat tiket tanpa konfirmasi itu — bilamana ragu, katakan belum dilakukan."""
 
 EXTRACTION_PROMPT = """Klasifikasi permintaan user terhadap tiket backlog. Balas HANYA satu objek JSON valid, TANPA teks lain, TANPA markdown:
 {"action":"create|rename|update_status|rename_and_status|none","title":"judul tiket persis seperti disebut user","new_title":"judul baru (rename saja)","new_status":"Not started|In progress|Need to review|Need to fix|Done|Blocking (update_status/rename_and_status saja)","division":null,"priority":"Medium","description":null}
