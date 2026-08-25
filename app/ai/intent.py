@@ -120,7 +120,7 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                 if "Status" in new_props:
                     st = (new_props["Status"]["status"]["name"])
                     parts.append(f"• *Status:* {st}")
-                parts.append(f"Cek: `detail tiket {page['id'][:8]}`")
+                parts.append(f"Cek: `detail tiket {T.ticket_code(page['id'])}`")
                 return "\n".join(parts)
 
             if action == "create" and title:
@@ -161,7 +161,7 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                     out += f"\n⚠️ @{pic_name} tidak ditemukan di daftar anggota — tiket dibuat tanpa PIC."
                 if pic_id and pic_name:
                     out += f"\n• *PIC:* {pic_name}"
-                out += f"\nCek: `detail tiket {page_id[:8]}`"
+                out += f"\nCek: `detail tiket {T.ticket_code(page_id)}`"
                 return out
     except Exception:
         pass

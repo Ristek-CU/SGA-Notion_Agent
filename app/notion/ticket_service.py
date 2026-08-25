@@ -35,7 +35,19 @@ STATUS_ALIASES = {
 
 def normalize_status(user_status: str) -> str:
     key = re.sub(r"[^a-z]", "", (user_status or "").lower())
-    return STATUS_ALIASES.get(key, user_status)
+    if key in STATUS_ALIASES:
+        return STATUS_ALIASES[key]
+    # fuzzy: "progres", "inprogres", "donee" dsb -> opsi valid terdekat
+    for v in VALID_STATUSES:
+        vk = re.sub(r"[^a-z]", "", v.lower())
+        if key and (key in vk or vk in key):
+            return v
+    return ""
+
+
+def ticket_code(page_id: str) -> str:
+    """ID singkat unik utk user: 8 char terakhir hex (prefix 8-char TIDAK unik di workspace ini)."""
+    return (page_id or "").replace("-", "")[-8:]
 
 
 def generate_ticket_id() -> str:
@@ -132,16 +144,15 @@ def _extract(page: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _find_by_ticket_prefix(pages: List[Dict[str, Any]], tid: str) -> Optional[Dict[str, Any]]:
-    """User bisa memakai TK-xxx yang kami generate saat create (disimpan di teks judul)
-    atau potongan page-id. Cocokkan longgar."""
-    tl = tid.lower()
-    for p in pages:
-        e = _extract(p)
-        if tl in (e["page_id"] or "").lower():
-            return p
-        if e["title"].lower().startswith(tl):
-            return p
-    return None
+    """Cocokkan kode tiket (8 char terakhir) atau full page-id. Kembalikan None kalau ambigu."""
+    t = (tid or "").strip().lower().replace("-", "")
+    if not t:
+        return None
+    exact = next((p for p in pages if p["id"].replace("-", "").lower() == t), None)
+    if exact:
+        return exact
+    matches = [p for p in pages if p["id"].replace("-", "").lower().endswith(t)]
+    return matches[0] if len(matches) == 1 else None
 
 
 async def query_tickets_direct(

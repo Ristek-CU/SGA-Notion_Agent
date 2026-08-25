@@ -113,7 +113,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
                 out += f"\n⚠️ @{pic_name} tidak ditemukan di daftar anggota — tiket dibuat tanpa PIC."
             if pic_id and pic_name:
                 out += f"\n• *PIC:* {pic_name}"
-            out += f"\nCek: `detail tiket {page_id[:8]}`"
+            out += f"\nCek: `detail tiket {T.ticket_code(page_id)}`"
             return out
         except Exception as e:
             return f"⚠️ Gagal membuat tiket ke Notion: {type(e).__name__}. Coba lagi sebentar ya."
@@ -127,7 +127,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             lines = ["📋 *Daftar Tiket Terbaru:*"]
             for p in pages:
                 e = T._extract(p)
-                lines.append(f"- `{(e['page_id'] or '?')[:8]}` {e['title'][:40]} ({e['status']})")
+                lines.append(f"- `{T.ticket_code(e['page_id'])}` {e['title'][:40]} ({e['status']})")
             return "\n".join(lines)
         except Exception as e:
             return f"⚠️ Gagal mengambil tiket: {type(e).__name__}"
@@ -178,7 +178,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
                 f"• Judul: {e['title']}\n"
                 f"• Status: {e['status']}\n"
                 f"• Prioritas: {e['priority'] or '-'}\n"
-                f"• ID: `{(e['page_id'] or '?')[:8]}`"
+                f"• ID: `{T.ticket_code(e['page_id'])}`"
             )
         except Exception as e:
             return f"⚠️ Gagal ambil detail: {type(e).__name__}"
@@ -186,6 +186,8 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
     if cmd_type == "update_status":
         tid, status = args.get("ticket_id", ""), args.get("status", "")
         status_name = T.normalize_status(status)
+        if not status_name:
+            return f"⚠️ Status \"{status}\" tidak dikenali — opsi valid: {', '.join(T.VALID_STATUSES)}."
         try:
             pages = await T.query_tickets_direct()
             page = T._find_by_ticket_prefix(pages, tid)
