@@ -112,9 +112,11 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                     new_props["Status"] = {"status": {"name": st}}
                 await T.update_ticket_direct(page["id"], new_props)
                 e = T._extract(page)
-                parts = ["✅ *Tiket berhasil diupdate!*", f"• *Judul:* {T._extract(page)['title']}"]
+                parts = ["✅ *Tiket berhasil diupdate!*"]
                 if new_title:
-                    parts.append(f"• *Nama lama:* {e['title']}")
+                    parts += [f"• *Judul:* {new_title}", f"• *Nama lama:* {e['title']}"]
+                else:
+                    parts.append(f"• *Judul:* {e['title']}")
                 if "Status" in new_props:
                     st = (new_props["Status"]["status"]["name"])
                     parts.append(f"• *Status:* {st}")
