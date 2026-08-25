@@ -44,8 +44,12 @@ def _prop(page: Dict[str, Any], key: str):
 
 
 def _title_of(page: Dict[str, Any]) -> str:
-    t = _prop(page, "Name").get("title", [])
-    return t[0].get("plain_text", "") if t else ""
+    # generik: ambil properti title apa pun (tiket: "Name", members: "Member Name")
+    for v in page.get("properties", {}).values():
+        t = v.get("title", [])
+        if t:
+            return t[0].get("plain_text", "")
+    return ""
 
 
 def _tid_of(page: Dict[str, Any]) -> str:
