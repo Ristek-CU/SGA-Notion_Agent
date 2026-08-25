@@ -59,7 +59,7 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str):
     exact = [p for p, t in titled if t == q]
     if len(exact) == 1:
         return exact[0], None
-    cand = [(p, t) for p, t in titled if q and (q in t or t in q)]
+    cand = [(p, t) for p, t in titled if q and t and (q in t or t in q)]
     if not cand:
         return None, []
     if len(cand) == 1:
