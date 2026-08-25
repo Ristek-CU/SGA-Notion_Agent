@@ -107,7 +107,8 @@ def _extract(page: Dict[str, Any]) -> Dict[str, Any]:
     props = page.get("properties", {})
     t = props.get("Name", {}).get("title", [])
     st = props.get("Status", {}).get("status", {}).get("name", "?")
-    pr = props.get("Priority Level", {}).get("select", {}).get("name")
+    pr = (props.get("Priority Level", {}) or {}).get("select") or {}
+    pr = pr.get("name")
     pic_ids = [r.get("id") for r in props.get("PIC", {}).get("relation", [])]
     div_ids = [r.get("id") for r in props.get("🧏‍♀️ Divisions", {}).get("relation", [])]
     created = props.get("Created time", {}).get("created_time", "")
