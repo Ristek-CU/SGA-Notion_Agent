@@ -1,36 +1,83 @@
 import asyncio
-import anthropic
+import json
 from typing import List, Dict, Any, Optional
+
+import anthropic
 from app.config import settings
 
 _anthropic_client: Optional[anthropic.AsyncAnthropic] = None
 
+_UA = "sga-notion-agent/1.0"
 
-def _make_http_client():
-    """httpx client yang menyamarkan header SDK (9router WAF memblok
-    user-agent/x-stainless khas Anthropic SDK dengan 403)."""
+
+def _base_headers() -> Dict[str, str]:
+    return {
+        "x-api-key": settings.anthropic_api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        "user-agent": _UA,
+    }
+
+
+def _messages_url() -> str:
+    base = settings.anthropic_base_url.rstrip("/")
+    return base if base.endswith("/v1/messages") else f"{base}/v1/messages"
+
+
+def _text_from_message(msg: Dict[str, Any]) -> str:
+    return "".join(
+        b.get("text", "") for b in (msg.get("content") or [])
+        if isinstance(b, dict) and b.get("type") == "text"
+    )
+
+
+async def _parse_body(response) -> str:
+    """Router SELALU membalas text/event-stream walau stream=false.
+    Parse SSE manual: kumpulkan text_delta sampai message_stop."""
+    ctype = response.headers.get("content-type", "")
+    if "text/event-stream" not in ctype:
+        body_bytes = await response.aread()
+        if response.status_code >= 400:
+            raise RuntimeError(f"upstream {response.status_code}: {body_bytes[:200]!r}")
+        return _text_from_message(json.loads(body_bytes))
+
+    text_parts: List[str] = []
+    async for line in response.aiter_lines():
+        if not line.startswith("data:"):
+            continue
+        data = line[5:].strip()
+        if not data or data == "[DONE]":
+            continue
+        try:
+            evt = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        etype = evt.get("type") or evt.get("event", {}).get("type") if isinstance(evt.get("event"), dict) else evt.get("type")
+        delta = evt.get("delta") or {}
+        if etype == "content_block_delta" and delta.get("type") == "text_delta":
+            text_parts.append(delta.get("text", ""))
+        elif etype == "message_stop":
+            break
+        elif etype == "error":
+            raise RuntimeError(f"SSE error: {str(evt)[:200]}")
+    return "".join(text_parts)
+
+
+async def _raw_create(payload: Dict[str, Any]) -> str:
+    """POST langsung tanpa SDK: hindari bug parse SSE router."""
     try:
         import httpx2
     except ImportError:
         import httpx as httpx2
 
-    async def _scrub_sdk_headers(request):
-        request.headers["user-agent"] = "sga-notion-agent/1.0"
-        for h in [k for k in request.headers.keys() if k.lower().startswith("x-stainless")]:
-            del request.headers[h]
-
-    return httpx2.AsyncClient(timeout=120.0, event_hooks={"request": [_scrub_sdk_headers]})
-
-
-def get_anthropic_client() -> anthropic.AsyncAnthropic:
-    global _anthropic_client
-    if _anthropic_client is None:
-        _anthropic_client = anthropic.AsyncAnthropic(
-            api_key=settings.anthropic_api_key,
-            base_url=settings.anthropic_base_url,
-            http_client=_make_http_client(),
-        )
-    return _anthropic_client
+    async with httpx2.AsyncClient(timeout=120.0) as client:
+        async with client.stream(
+            "POST",
+            _messages_url(),
+            headers=_base_headers(),
+            json=payload,
+        ) as response:
+            return await _parse_body(response)
 
 
 async def create_message(
@@ -39,32 +86,27 @@ async def create_message(
     max_tokens: int = 1000,
     model: Optional[str] = None,
 ) -> str:
-    client = get_anthropic_client()
     target_model = model or settings.ai_model
 
-    kwargs: Dict[str, Any] = {
+    payload: Dict[str, Any] = {
         "model": target_model,
         "messages": messages,
         "max_tokens": max_tokens,
+        # ponytail: stream=True WAJIB — mode non-stream router balas content kosong
+        # (token reasoning memakan seluruh completion). Upgrade: pindah model tanpa reasoning.
+        "stream": True,
     }
     if system:
-        kwargs["system"] = system
+        payload["system"] = system
 
-    # 9router selalu membalas text/event-stream meski non-streaming diminta;
-    # gunakan mode streaming agar SDK mem-parse SSE dengan benar.
     last_exc: Optional[Exception] = RuntimeError("LLM call failed")
     for attempt in range(3):
         try:
-            async with client.messages.stream(**kwargs) as stream:
-                msg = await stream.get_final_message()
-            text = "".join(b.text for b in (msg.content or []) if getattr(b, "type", "") == "text")
-            # 9router kadang menutup stream prematur: tanpa stop_reason & teks terpotong
-            if not text and getattr(msg, "stop_reason", "end_turn") != "end_turn":
-                last_exc = RuntimeError(f"stream truncated (stop_reason={msg.stop_reason})")
-                await asyncio.sleep(1.5 * (attempt + 1))
-                continue
-            return text
-        except (anthropic.PermissionDeniedError, anthropic.InternalServerError, anthropic.APIConnectionError) as e:
+            text = await _raw_create(payload)
+            if text.strip():
+                return text.strip()
+            last_exc = RuntimeError("empty completion")
+        except Exception as e:  # ponytail: router error bentuknya macam2 (403/5xx/SSE putus); persemp saat stabil
             last_exc = e
-            await asyncio.sleep(2 * (attempt + 1))
+        await asyncio.sleep(1.5 * (attempt + 1))
     raise last_exc

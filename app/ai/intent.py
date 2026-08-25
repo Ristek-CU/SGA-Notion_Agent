@@ -68,7 +68,7 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
         raw_res = ""
         for attempt in range(2):  # retry: 9router kadang memotong stream -> JSON invalid
             try:
-                raw_res = await create_message(messages, max_tokens=400)
+                raw_res = await create_message(messages, max_tokens=2000)  # reasoning model makan budget
                 start = raw_res.find("{")
                 end = raw_res.rfind("}") + 1
                 if start != -1 and end != -1:
@@ -198,7 +198,7 @@ async def handle_chat(message: str, sender_info: Dict[str, Any]) -> str:
         if not messages or messages[-1] != {"role": "user", "content": message}:
             messages.append({"role": "user", "content": message})
 
-    reply = await create_message(messages, system=sys, max_tokens=800)
+    reply = await create_message(messages, system=sys, max_tokens=2000)
     return reply.strip() or "Maaf, coba ulangi pertanyaannya ya."
 
 
@@ -224,5 +224,5 @@ async def handle_chat_with_context(message: str, sender_info: Dict[str, Any]) ->
         f"{task_ctx}"
     )
     messages = history + [{"role": "user", "content": message}]
-    reply = await create_message(messages, system=sys, max_tokens=800)
+    reply = await create_message(messages, system=sys, max_tokens=2000)
     return reply.strip() or "Maaf, coba ulangi pertanyaannya ya."
