@@ -15,7 +15,7 @@ Gaya menjawab:
 3. Kalau user sepakat ingin membuat task/tiket, pandu lewat perintah bot (contoh: `buat tiket <judul>`).
 4. Jangan pernah mengarang data internal (nomor tiket, nama anggota) — kalau tidak yakin, bilang jujur dan sarankan perintah seperti `list tiket`."""
 
-EXTRACTION_PROMPT = """Ekstrak informasi pembuatan tiket dari pesan berikut dalam bentuk JSON valid:
+EXTRACTION_PROMPT = """Ekstrak informasi pembuatan tiket dari pesan berikut. Balas HANYA satu objek JSON valid, TANPA teks lain, TANPA markdown:
 - title: string (judul singkat tiket)
 - division: string (salah satu dari: BPH, Media and Information, Research and Technology, Public and Community Relationship, UKM Development, Business And Partnership, Intellectual and Career Development, Student Advocacy and Welfare; atau null)
 - priority: string (High, Medium, Low, default Medium)
