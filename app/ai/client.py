@@ -53,11 +53,17 @@ async def create_message(
     # 9router selalu membalas text/event-stream meski non-streaming diminta;
     # gunakan mode streaming agar SDK mem-parse SSE dengan benar.
     last_exc: Optional[Exception] = RuntimeError("LLM call failed")
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             async with client.messages.stream(**kwargs) as stream:
                 msg = await stream.get_final_message()
-            return "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+            text = "".join(b.text for b in (msg.content or []) if getattr(b, "type", "") == "text")
+            # 9router kadang menutup stream prematur: tanpa stop_reason & teks terpotong
+            if not text and getattr(msg, "stop_reason", "end_turn") != "end_turn":
+                last_exc = RuntimeError(f"stream truncated (stop_reason={msg.stop_reason})")
+                await asyncio.sleep(1.5 * (attempt + 1))
+                continue
+            return text
         except (anthropic.PermissionDeniedError, anthropic.InternalServerError, anthropic.APIConnectionError) as e:
             last_exc = e
             await asyncio.sleep(2 * (attempt + 1))
