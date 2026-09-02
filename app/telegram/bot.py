@@ -30,10 +30,16 @@ _MD_BOLD = _re.compile(r"\*([^*\n]+)\*")
 
 
 def _wa_md_to_tg_html(text: str) -> str:
-    """Balasan bot ditulis dgn markdown gaya WA (*bold*, `mono`).
-    Konversi ke HTML parse_mode Telegram; fallback plain kalau invalid."""
+    """Balasan bot ditulis dgn markdown gaya WA (*bold*, _italic_, ~strike~, `mono`).
+    Konversi ke HTML parse_mode Telegram secara aman."""
     out = _html.escape(text, quote=False)
-    out = _MD_BOLD.sub(r"<b>\1</b>", out)
+    # Bold: *text* -> <b>text</b>
+    out = _re.sub(r"\*([^*\n]+)\*", r"<b>\1</b>", out)
+    # Italic: _text_ -> <i>text</i>
+    out = _re.sub(r"_([^_\n]+)_", r"<i>\1</i>", out)
+    # Strikethrough: ~text~ -> <s>text</s>
+    out = _re.sub(r"~([^~\n]+)~", r"<s>\1</s>", out)
+    # Inline code: `text` -> <code>text</code>
     out = _re.sub(r"`([^`\n]+)`", r"<code>\1</code>", out)
     return out
 
