@@ -51,7 +51,12 @@ def test_admin_system_env():
     assert body["data"]["NODE_ENV"] == settings.node_env
 
 
-def test_admin_guard_config_toggle():
+@patch("app.admin.notify.record_audit_log")
+@patch("app.admin.notify.get_guard_state")
+@patch("app.admin.notify.update_guard_state")
+def test_admin_guard_config_toggle(mock_update, mock_get, mock_audit):
+    mock_get.return_value = {"enabled": True, "strict_mode": True}
+    mock_update.return_value = {"enabled": False, "strict_mode": True}
     token = get_auth_token()
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -86,15 +91,15 @@ def test_admin_contacts_crud():
     assert res_del.status_code == 200
 
 
-@patch("app.admin.wa._evolution_request")
-def test_admin_wa_status(mock_evo):
-    mock_evo.return_value = {"state": "open"}
+@patch("app.admin.wa._waha_request")
+def test_admin_wa_status(mock_waha):
+    mock_waha.return_value = {"name": "wa-bot", "status": "WORKING"}
     token = get_auth_token()
     headers = {"Authorization": f"Bearer {token}"}
 
     res = client.get("/admin/wa/status", headers=headers)
     assert res.status_code == 200
-    assert res.json()["data"]["state"] == "open"
+    assert res.json()["data"]["status"] == "WORKING"
 
 
 @patch("app.admin.notion.query_tickets_direct")

@@ -52,6 +52,15 @@ async def init_db_schema():
     );
     CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts (phone);
     CREATE INDEX IF NOT EXISTS idx_contacts_telegram ON contacts (telegram);
+
+    CREATE TABLE IF NOT EXISTS platform_configs (
+        name VARCHAR(50) PRIMARY KEY,
+        enabled BOOLEAN NOT NULL DEFAULT FALSE,
+        bot_token VARCHAR(255) DEFAULT '',
+        config_data JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
     """
     async with _pool.acquire() as conn:
         await conn.execute(schema_sql)
