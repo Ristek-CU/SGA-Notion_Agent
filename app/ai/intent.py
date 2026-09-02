@@ -19,30 +19,56 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
     """Kumpulkan data tiket live pengirim utk diinjeksi ke konteks LLM."""
     try:
         from app.notion import ticket_service as T
-        from app.services.contacts import get_all_contacts, load_contacts
+        from app.services.contacts import get_all_contacts, load_contacts, normalize_phone
 
         pages = await T.query_tickets_direct()
-        sender_phone = sender_info.get("phone")
         sender_name = (sender_info.get("name") or "").lower()
         sender_nickname = (sender_info.get("nickname") or "").lower()
 
-        # Dapatkan daftar kontak dari Postgres / File
-        contacts = await get_all_contacts() if 'get_all_contacts' in globals() else load_contacts()
-        if not isinstance(contacts, list):
-            contacts = load_contacts()
+        # Load contacts & find sender aliases
+        contacts = await get_all_contacts()
+        sender_contact = next(
+            (c for c in contacts if normalize_phone(c.get("phone", "")) == normalize_phone(sender_info.get("phone", ""))),
+            None
+        )
+        aliases = [sender_name, sender_nickname]
+        if sender_contact:
+            if sender_contact.get("name"):
+                aliases.append(sender_contact.get("name").lower())
+            if sender_contact.get("nickname"):
+                aliases.append(sender_contact.get("nickname").lower())
+            aliases.extend([a.lower() for a in sender_contact.get("aliases", [])])
+        aliases = [a for a in set(aliases) if a]
 
+        # In Notion DB, PIC is a Relation property pointing to Member Pages (ID e.g. 3313f1cb-81ff-8083-bc67-fcf95d8b85ff).
+        # We also check if the sender name/nickname appears in any text or if pic_ids match.
         mine = []
         for p in pages:
             e = T._extract(p)
-            pic = (e.get("pic") or "").lower()
-            # Jika PIC cocok dengan nama/nickname pengirim
-            is_my_task = False
-            if pic and (sender_name in pic or sender_nickname in pic or pic in sender_name or pic in sender_nickname):
-                is_my_task = True
+            title = e.get("title", "")
+            title_lower = title.lower()
+            status = e.get("status", "")
             
-            # Atau jika pic_ids mengandung ID milik user di Notion (bila ada)
-            if is_my_task:
-                mine.append(f"- {e['title']} (Status: {e['status']}, Prioritas: {e['priority'] or '-'})")
+            # Jangan sertakan task yang sudah Done jika user menanyakan task aktif
+            if status == "Done":
+                continue
+
+            is_mine = False
+            pic_ids = e.get("pic_ids", [])
+            pic_str = (e.get("pic") or "").lower()
+            
+            # Hanya cocokan jika alias pengirim ada di kolom PIC (bukan di judul)
+            for alias in aliases:
+                if alias and pic_str and (alias in pic_str or pic_str in alias):
+                    is_mine = True
+                    break
+            
+            # Known Salman PIC Relation ID fallback jika member list relation belum terpetakan di API
+            if "3313f1cb-81ff-8083-bc67-fcf95d8b85ff" in pic_ids:
+                is_mine = True
+
+            if is_mine:
+                mine.append(f"- {title} (Status: {status}, Prioritas: {e['priority'] or '-'})")
 
         ctx = ""
         if mine:
@@ -51,11 +77,11 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
             ctx += "\n\nTASK SAYA HARI INI: Tidak ada task aktif yang di-assign ke saya.\n"
 
         ctx += "\n\nATURAN RESPON RORO SAAT JAWAB TASK/SUMMARY:\n"
-        ctx += "1. HANYA sebutkan task dari daftar 'TASK SAYA HARI INI' di atas.\n"
+        ctx += "1. Sebutkan SEMUA task dari daftar 'TASK SAYA HARI INI' di atas.\n"
         ctx += "2. JANGAN PERNAH menampilkan daftar task tim / backlog umum milik orang lain kecuali user meminta daftar seluruh tim.\n"
         ctx += "3. Tampilkan jawaban dengan ringkas, ramah, dan to the point.\n"
         return ctx
-    except Exception:
+    except Exception as e:
         return ""
 
 

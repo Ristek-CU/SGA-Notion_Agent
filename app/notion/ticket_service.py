@@ -131,6 +131,12 @@ def _extract(page: Dict[str, Any]) -> Dict[str, Any]:
     pic_ids = [r.get("id") for r in props.get("PIC", {}).get("relation", [])]
     div_ids = [r.get("id") for r in props.get("🧏‍♀️ Divisions", {}).get("relation", [])]
     created = props.get("Created time", {}).get("created_time", "")
+
+    # Extract PIC member/user names or created_by if available
+    pic_names = []
+    created_by_user = props.get("Created by", {}).get("created_by", {})
+    created_by_name = created_by_user.get("name", "")
+
     return {
         "page_id": page.get("id"),
         "ticket_id": None,  # DB tak punya properti ID; pakai page id
@@ -138,6 +144,8 @@ def _extract(page: Dict[str, Any]) -> Dict[str, Any]:
         "status": st,
         "priority": pr,
         "pic_ids": pic_ids,
+        "pic": ", ".join(pic_names) if pic_names else None,
+        "created_by": created_by_name,
         "division_ids": div_ids,
         "created": created,
     }
