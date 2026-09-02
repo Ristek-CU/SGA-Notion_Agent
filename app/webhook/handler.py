@@ -36,7 +36,8 @@ def normalize_waha_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     is_group = chat_id.endswith("@g.us")
     participant = sender.get("id") or msg.get("from") or chat_id
     text = (
-        msg.get("text")
+        msg.get("body")
+        or msg.get("text")
         or (msg.get("message") or {}).get("text")
         or (msg.get("message") or {}).get("conversation")
         or ""
