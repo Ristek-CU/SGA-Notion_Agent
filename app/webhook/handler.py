@@ -145,18 +145,13 @@ async def handle_webhook(instance: str, payload: WebhookPayload, request: Reques
         print(f"[WAHA WEBHOOK RECEIVE] instance={instance} event={payload.event} body={str(raw_body)[:300]}")
     except Exception:
         pass
-    # Format WaHa: { event, session, payload: <message object> }
-    if payload.payload:
-        event = payload.event or ""
-        session_name = payload.session or payload.instance or instance
-        if event.startswith("message"):
-            msg = normalize_waha_message(payload.payload)
-            if msg["key"].get("id"):
-                asyncio.create_task(process_incoming_message(msg, instance_name=session_name))
+
+    # Direct WAHA JSON structure (event: "message" / "message.any", payload: message_obj)
+    msg_data = payload.payload or payload.data
+    if msg_data:
+        msg = normalize_waha_message(msg_data)
+        if msg["key"].get("id"):
+            asyncio.create_task(process_incoming_message(msg, instance_name=instance))
         return {"status": "processing"}
 
-    # Format Evolution API: { event: "messages.upsert", data: <message object> }
-    data = payload.data
-    if payload.event == "messages.upsert" or "message" in data:
-        asyncio.create_task(process_incoming_message(data, instance_name=instance))
     return {"status": "processing"}
