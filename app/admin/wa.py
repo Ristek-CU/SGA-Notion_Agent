@@ -49,6 +49,23 @@ async def get_wa_status(current_user: str = Depends(verify_token)):
     return {"data": res, "error": None, "message": "Instance status retrieved"}
 
 
+@router.post("/wa/webhook-setup")
+async def setup_wa_webhook(current_user: str = Depends(verify_token)):
+    target_webhook = f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
+    payload = {
+        "config": {
+            "webhooks": [
+                {
+                    "url": target_webhook,
+                    "events": ["message", "message.any"]
+                }
+            ]
+        }
+    }
+    res = await _waha_request("PATCH", f"/api/sessions/{_session_name()}", json_body=payload)
+    return {"data": {"target_webhook": target_webhook, "waha_response": res}, "error": None, "message": "WAHA webhook updated"}
+
+
 @router.get("/wa/qr")
 async def get_wa_qr(current_user: str = Depends(verify_token)):
     """Proxy QR pairing WaHa -> base64 PNG (agar bisa dirender frontend via Bearer JWT)."""
