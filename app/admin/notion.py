@@ -182,26 +182,26 @@ async def get_divisions(current_user: str = Depends(verify_token)):
 
 # Contacts CRUD
 @router.get("/contacts")
-def list_contacts(current_user: str = Depends(verify_token)):
-    contacts = get_all_contacts()
+async def list_contacts(current_user: str = Depends(verify_token)):
+    contacts = await get_all_contacts()
     return {"data": contacts, "error": None, "message": "Contacts fetched"}
 
 
 @router.post("/contacts")
-def create_contact(req: ContactCreateRequest, current_user: str = Depends(verify_token)):
-    contact = add_or_update_contact(req.name, req.phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
+async def create_contact(req: ContactCreateRequest, current_user: str = Depends(verify_token)):
+    contact = await add_or_update_contact(req.name, req.phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
     return {"data": contact, "error": None, "message": "Contact saved"}
 
 
 @router.put("/contacts/{phone}")
-def update_contact(phone: str, req: ContactUpdateRequest, current_user: str = Depends(verify_token)):
-    contact = add_or_update_contact(req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
+async def update_contact(phone: str, req: ContactUpdateRequest, current_user: str = Depends(verify_token)):
+    contact = await add_or_update_contact(req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
     return {"data": contact, "error": None, "message": "Contact updated"}
 
 
 @router.delete("/contacts/{phone}")
-def remove_contact(phone: str, current_user: str = Depends(verify_token)):
-    deleted = delete_contact(phone)
+async def remove_contact(phone: str, current_user: str = Depends(verify_token)):
+    deleted = await delete_contact(phone)
     if not deleted:
         raise HTTPException(status_code=404, detail="Contact not found")
     return {"data": {"phone": phone}, "error": None, "message": "Contact deleted"}

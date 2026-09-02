@@ -29,7 +29,7 @@ async def test_whitelist_unregistered_user_ignored():
 async def test_whitelist_registered_telegram_and_wa():
     """User yang terdaftar di contacts (via phone atau telegram) harus diproses."""
     # Pastikan contact ditambahkan
-    add_or_update_contact(
+    await add_or_update_contact(
         name="Test User",
         phone="628111222333",
         role="Staff",
@@ -69,4 +69,4 @@ async def test_whitelist_registered_telegram_and_wa():
         mock_send.assert_called()
 
     # Cleanup
-    delete_contact("628111222333")
+    await delete_contact("628111222333")

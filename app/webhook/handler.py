@@ -96,7 +96,8 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             raw_sender = cached_phone
 
     # Resolve sender identity (Telegram username dipakai utk cocokkan kontak)
-    sender_info = resolve_identity(raw_sender, push_name=push_name, telegram_username=telegram_username)
+    from app.services.identity import resolve_identity_async
+    sender_info = await resolve_identity_async(raw_sender, push_name=push_name, telegram_username=telegram_username)
 
     # Whitelist check: Abaikan pesan jika user tidak dikenal (tidak ada di daftar kontak/whitelist)
     if not sender_info.get("is_known"):
