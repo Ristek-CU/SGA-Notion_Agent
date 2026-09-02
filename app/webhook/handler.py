@@ -131,11 +131,12 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
     # Save assistant reply to session
     await session_manager.save_assistant_response(sender_info["phone"], reply_text)
 
-    # Send response back to WA
+    # Send response back to WA (Gunakan sender_info["phone"] jika remote_jid berupa @lid)
+    target_jid = sender_info["phone"] if "@lid" in remote_jid else remote_jid
     if is_group:
         await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
     else:
-        await _send(reply_override, remote_jid, reply_text, instance_name)
+        await _send(reply_override, target_jid, reply_text, instance_name)
 
 
 @router.post("/webhook/{instance}")
