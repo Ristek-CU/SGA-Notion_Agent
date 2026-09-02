@@ -10,8 +10,9 @@ COMMAND_PATTERNS = [
     ("my_tickets", r"^(tiket|tugas)\s+saya$"),
     ("create_ticket", r"^(buat|create|tambah)\s+(tiket|ticket)\s+(.+)"),
     ("ticket_detail", r"^(detail|cek)\s+(tiket|ticket)\s+(.+)$"),
-    # id/kode boleh 1 token; sisanya dianggap judul multi-kata
-    ("update_status", r"^(update|ubah)\s+status\s+(.+?)\s+(menjadi|jadi|ke|to|->)\s+(.+)$"),
+    # fleksibel: "update status X ke Done", "update tiket X ke Done", "ubah status X jadi Done", "X dah selesai / kelar"
+    ("update_status", r"^(?:update|ubah)\s+(?:status|tiket|ticket)?\s*(.+?)\s+(?:menjadi|jadi|ke|to|->)\s+(.+)$"),
+    ("update_status_flexible", r"^(.+?)\s+(?:dah|sudah|dh)?\s*(?:selesai|kelar|done)\b"),
     ("assign_pic", r"^(assign|tunjuk)\s+([a-zA-Z0-9\-]+)\s+(ke|to)\s+(.+)"),
     ("list_divisions", r"^(list|daftar)\s+(divisi|division)$"),
     ("list_members", r"^(list|daftar)\s+(member|anggota)$"),
@@ -33,8 +34,12 @@ def parse_command(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
             elif cmd_type == "ticket_detail" and len(args) >= 3:
                 kwargs["ticket_id"] = args[2]
             elif cmd_type == "update_status":
-                kwargs["ticket_id"] = args[1]
-                kwargs["status"] = args[3] if len(args) > 3 else args[-1]
+                kwargs["ticket_id"] = args[0]
+                kwargs["status"] = args[1]
+            elif cmd_type == "update_status_flexible":
+                kwargs["ticket_id"] = args[0]
+                kwargs["status"] = "Done"
+                cmd_type = "update_status"
             elif cmd_type == "assign_pic":
                 kwargs["ticket_id"] = args[1]
                 kwargs["pic_name"] = args[3]
