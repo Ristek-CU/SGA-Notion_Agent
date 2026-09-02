@@ -91,7 +91,7 @@ def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, teleg
         u = telegram_username.strip().lower().lstrip("@").rstrip("_")
         for c in contacts:
             tg = (c.get("telegram") or "").strip().lower().lstrip("@").rstrip("_")
-            if tg and (tg == u or u.startswith(tg) or tg.startswith(u)):
+            if tg and tg == u:
                 matched_contact = c
                 break
 

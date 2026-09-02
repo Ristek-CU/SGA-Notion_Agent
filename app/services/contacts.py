@@ -109,10 +109,9 @@ async def find_contact_by_telegram(username: str) -> Optional[Dict[str, Any]]:
                     SELECT id, name, nickname, phone, telegram, division, role, aliases
                     FROM contacts
                     WHERE LOWER(TRIM(LEADING '@' FROM telegram)) = $1
-                       OR LOWER(TRIM(LEADING '@' FROM telegram)) LIKE $2
                     LIMIT 1
                     """,
-                    u, f"{u}%"
+                    u
                 )
                 if row:
                     return dict(row)
@@ -122,7 +121,7 @@ async def find_contact_by_telegram(username: str) -> Optional[Dict[str, Any]]:
     # Fallback to local
     for c in _load_contacts_from_file():
         tg = (c.get("telegram") or "").strip().lower().lstrip("@").rstrip("_")
-        if tg and (tg == u or u.startswith(tg) or tg.startswith(u)):
+        if tg and tg == u:
             return c
     return None
 
