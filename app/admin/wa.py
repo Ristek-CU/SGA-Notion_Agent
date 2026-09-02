@@ -85,8 +85,33 @@ async def get_wa_qr(current_user: str = Depends(verify_token)):
 
 @router.post("/wa/scan")
 async def scan_wa(current_user: str = Depends(verify_token)):
-    res = await _waha_request("POST", "/api/sessions/start", json_body={"name": _session_name()})
-    return {"data": res, "error": None, "message": "Scan requested"}
+    # Re-create session dengan webhook config jika session belum dikonfigurasi
+    target_webhook = f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
+    payload = {
+        "name": _session_name(),
+        "config": {
+            "webhooks": [
+                {
+                    "url": target_webhook,
+                    "events": ["message", "message.any"]
+                }
+            ]
+        }
+    }
+    try:
+        # Coba hentikan & hapus session lama jika dalam status terhenti/unconfigured
+        await _waha_request("POST", f"/api/sessions/{_session_name()}/stop", json_body={})
+        await _waha_request("DELETE", f"/api/sessions/{_session_name()}")
+    except Exception:
+        pass
+
+    try:
+        await _waha_request("POST", "/api/sessions", json_body=payload)
+    except Exception:
+        pass
+
+    res = await _waha_request("POST", f"/api/sessions/{_session_name()}/start")
+    return {"data": res, "error": None, "message": "Scan requested with webhook configured"}
 
 
 @router.post("/wa/disconnect")
