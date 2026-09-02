@@ -159,6 +159,13 @@ const WAButtons: React.FC<{ runAction: any; showQr?: boolean }> = ({ runAction, 
         : 'Scan / Buat QR'}
     </button>
     <button
+      onClick={() => runAction.mutate('/admin/wa/webhook-setup')}
+      disabled={runAction.isPending}
+      className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+    >
+      Connect / Setup Webhook
+    </button>
+    <button
       onClick={() => runAction.mutate('/admin/wa/refresh')}
       disabled={runAction.isPending}
       className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
