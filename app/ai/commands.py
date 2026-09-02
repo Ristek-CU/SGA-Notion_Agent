@@ -52,8 +52,9 @@ def _norm_txt(s: str) -> str:
     return " ".join((s or "").lower().split())
 
 
-def _resolve_ticket(pages: List[Dict[str, Any]], query: str):
-    """Urutan: kode/full-id -> judul sama persis -> substring / kata pencocokan terbanyak."""
+def _resolve_ticket(pages: List[Dict[str, Any]], query: str, prefer_sender: Optional[Dict[str, Any]] = None):
+    """Urutan: kode/full-id -> judul sama persis -> substring / kata pencocokan terbanyak.
+    Jika ada prefer_sender (mis. PIC matching), prioritaskan tiket yang ditugaskan ke sender."""
     page = T._find_by_ticket_prefix(pages, query)
     if page:
         return page, None
@@ -65,21 +66,30 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str):
     if len(exact) == 1:
         return exact[0], None
 
+    sender_nickname = (prefer_sender.get("nickname") or prefer_sender.get("name") or "").lower() if prefer_sender else ""
+
     # Partial / word matching
     words = set(q.split())
     matched = []
     for p, t in titled:
         if not t:
             continue
+        score = 0
         if q in t or t in q:
-            matched.append((p, t, 100))
+            score = 100
         else:
             t_words = set(t.split())
             common = words.intersection(t_words)
             if common:
-                score = len(common) / len(words)
-                if score >= 0.5:  # minimal 50% kata cocok
-                    matched.append((p, t, score))
+                score = (len(common) / len(words)) * 10
+        
+        if score > 0:
+            # Bonus jika PIC cocok dengan pengirim pesan
+            e = T._extract(p)
+            pic = (e.get("pic") or "").lower()
+            if sender_nickname and pic and (sender_nickname in pic or pic in sender_nickname):
+                score += 50
+            matched.append((p, t, score))
 
     if not matched:
         return None, []
@@ -246,7 +256,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             return f"⚠️ Status \"{status}\" tidak dikenali — opsi valid: {', '.join(T.VALID_STATUSES)}."
         try:
             pages = await T.query_tickets_direct()
-            page, ambig = _resolve_ticket(pages, tid)
+            page, ambig = _resolve_ticket(pages, tid, prefer_sender=sender_info)
             if ambig:
                 opts = "\n".join(f"- {t}" for t in ambig)
                 return f"🤔 Ada beberapa tiket mirip \"{tid}\" — maksudmu yang mana?\n{opts}"
