@@ -98,6 +98,9 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str, prefer_sender: Opti
         return None, []
 
     # Jika ada task pengirim yang punya skor jauh lebih tinggi, langsung pilih task tersebut
+    # Deduplicate & preserve order
+    cand_titles = list(dict.fromkeys([t for _, t, _ in matched]))
+
     matched.sort(key=lambda x: -x[2])
     if len(matched) == 1 or (len(matched) > 1 and matched[0][2] > matched[1][2]):
         return matched[0][0], None
@@ -118,11 +121,10 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str, prefer_sender: Opti
             if test_item:
                 return test_item[0], None
         
-        cand_titles = [t for _, t, _ in sender_matched]
+        cand_titles = list(dict.fromkeys([t for _, t, _ in sender_matched]))
         return None, cand_titles[:5]
 
-    cand = [t for _, t, _ in matched]
-    return None, cand[:5]
+    return None, cand_titles[:5]
 
 
 def _prop(page: Dict[str, Any], key: str):
