@@ -3,10 +3,10 @@ from app.services.identity import resolve_identity
 
 
 def test_resolve_identity_known():
-    res = resolve_identity("628123456789", push_name="Salman")
+    res = resolve_identity("6285175019086", push_name="Salman")
     assert res["is_known"] is True
-    assert res["name"] == "Salman"
-    assert res["division"] == "Tech"
+    assert res["name"] == "Muhammad Salman Firdaus"
+    assert res["division"] == "Research and Technology"
 
 
 def test_resolve_identity_unknown():

@@ -1,23 +1,1003 @@
 [
   {
-    "name": "Salman",
-    "nickname": "Salman",
-    "phone": "628123456789",
-    "division": "Tech",
-    "role": "Lead",
+    "name": "Aldridge Mika Gunawan",
+    "nickname": "mika",
+    "phone": "6288211416866",
+    "division": "BPH",
+    "role": "Vice President",
     "aliases": [
-      "salman",
-      "sam"
+      "mika"
     ]
   },
   {
-    "name": "Budi Santoso",
-    "nickname": "Budi",
-    "phone": "628987654321",
-    "division": "Ristek",
+    "name": "Firaas Andaru Athaa Ramadhan",
+    "nickname": "firaas",
+    "phone": "6285179578373",
+    "division": "BPH",
+    "role": "Controller",
+    "aliases": [
+      "firaas"
+    ]
+  },
+  {
+    "name": "Vania",
+    "nickname": "vania",
+    "phone": "6287875743961",
+    "division": "BPH",
+    "role": "Controller",
+    "aliases": [
+      "vania"
+    ]
+  },
+  {
+    "name": "Vincensius Anthony",
+    "nickname": "vincens",
+    "phone": "6289686573084",
+    "division": "BPH",
+    "role": "Controller",
+    "aliases": [
+      "vincens"
+    ]
+  },
+  {
+    "name": "Nyssa Mutiara Syakieb",
+    "nickname": "nyssa",
+    "phone": "6288213251986",
+    "division": "BPH",
+    "role": "Controller",
+    "aliases": [
+      "nyssa"
+    ]
+  },
+  {
+    "name": "Marshelinda Rukmana",
+    "nickname": "marshel",
+    "phone": "6285882930501",
+    "division": "BPH",
+    "role": "Secretary",
+    "aliases": [
+      "marshel"
+    ]
+  },
+  {
+    "name": "Raihan Firdaus Hadi Saputra",
+    "nickname": "raihan",
+    "phone": "6282298282166",
+    "division": "BPH",
+    "role": "Secretary",
+    "aliases": [
+      "raihan"
+    ]
+  },
+  {
+    "name": "Fatimah Tri Lestari",
+    "nickname": "fatimah",
+    "phone": "62895422646827",
+    "division": "BPH",
+    "role": "Treasurer",
+    "aliases": [
+      "fatimah"
+    ]
+  },
+  {
+    "name": "Atikah Nurfatkiyah",
+    "nickname": "atikah",
+    "phone": "62859162495850",
+    "division": "BPH",
+    "role": "Treasurer",
+    "aliases": [
+      "atikah"
+    ]
+  },
+  {
+    "name": "Dita Wilia Wardah",
+    "nickname": "dita",
+    "phone": "6281224976067",
+    "division": "Media and Information",
+    "role": "Head",
+    "aliases": [
+      "dita"
+    ]
+  },
+  {
+    "name": "Estrella Illda Meisya",
+    "nickname": "estrella",
+    "phone": "6281382612283",
+    "division": "Media and Information",
+    "role": "Deputy Head",
+    "aliases": [
+      "estrella"
+    ]
+  },
+  {
+    "name": "Anisa Ayu Listiani",
+    "nickname": "anisa",
+    "phone": "6285899558153",
+    "division": "Media and Information",
+    "role": "Secretary",
+    "aliases": [
+      "anisa"
+    ]
+  },
+  {
+    "name": "Aulia Ajeng Ramadhani",
+    "nickname": "aulia",
+    "phone": "6285891003134",
+    "division": "Media and Information",
+    "role": "Treasurer",
+    "aliases": [
+      "aulia"
+    ]
+  },
+  {
+    "name": "Thoriq Bhima Filiandro",
+    "nickname": "thoriq",
+    "phone": "6281219547316",
+    "division": "Media and Information",
     "role": "Staff",
     "aliases": [
-      "budi"
+      "thoriq"
+    ]
+  },
+  {
+    "name": "Sharon Rizkia Gagola",
+    "nickname": "sharon",
+    "phone": "6281318851609",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "sharon"
+    ]
+  },
+  {
+    "name": "M. Fazril",
+    "nickname": "fazril",
+    "phone": "6283134177007",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "fazril"
+    ]
+  },
+  {
+    "name": "Royhan Sidqi Almutta Ali",
+    "nickname": "royhan",
+    "phone": "6285156866608",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "royhan"
+    ]
+  },
+  {
+    "name": "Katharina Ayesha Lintang Marchariyalya",
+    "nickname": "katharina",
+    "phone": "6282113572458",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "katharina"
+    ]
+  },
+  {
+    "name": "Aisha Omar Hussen Alamodi",
+    "nickname": "aisha",
+    "phone": "6285156209328",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "aisha"
+    ]
+  },
+  {
+    "name": "Dian Monik Rosita",
+    "nickname": "dian",
+    "phone": "6287877677112",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "dian"
+    ]
+  },
+  {
+    "name": "Linggar Fahlevi",
+    "nickname": "linggar",
+    "phone": "6285179765001",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "linggar"
+    ]
+  },
+  {
+    "name": "Farlencia Kayla Anggraeni",
+    "nickname": "farlencia",
+    "phone": "6281584486369",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "farlencia"
+    ]
+  },
+  {
+    "name": "Nailendra Noeza Sahira",
+    "nickname": "nailendra",
+    "phone": "6282114858071",
+    "division": "Media and Information",
+    "role": "Staff",
+    "aliases": [
+      "nailendra"
+    ]
+  },
+  {
+    "name": "Yaa Siin",
+    "nickname": "yaa",
+    "phone": "628888902026",
+    "division": "Research and Technology",
+    "role": "Head",
+    "aliases": [
+      "yaa"
+    ]
+  },
+  {
+    "name": "Andi Fauzan H",
+    "nickname": "andi",
+    "phone": "6288289048433",
+    "division": "Research and Technology",
+    "role": "Deputy Head",
+    "aliases": [
+      "andi"
+    ]
+  },
+  {
+    "name": "Qonita Putri Amalia Firdausah",
+    "nickname": "qonita",
+    "phone": "6281292269559",
+    "division": "Research and Technology",
+    "role": "Secretary",
+    "aliases": [
+      "qonita"
+    ]
+  },
+  {
+    "name": "Kanaya Anantani Syafikri",
+    "nickname": "kanaya",
+    "phone": "6285218784442",
+    "division": "Research and Technology",
+    "role": "Treasurer",
+    "aliases": [
+      "kanaya"
+    ]
+  },
+  {
+    "name": "Robby Fabian",
+    "nickname": "robby",
+    "phone": "6283819470093",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "robby"
+    ]
+  },
+  {
+    "name": "Muhamad Rizki",
+    "nickname": "rizki",
+    "phone": "6285179973626",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "rizki"
+    ]
+  },
+  {
+    "name": "Ivander Daniel Napitupulu",
+    "nickname": "ivander",
+    "phone": "6281290679370",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "ivander"
+    ]
+  },
+  {
+    "name": "Muhammad Salman Firdaus",
+    "nickname": "salman",
+    "phone": "6285175019086",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "salman"
+    ],
+    "telegram": "msalman"
+  },
+  {
+    "name": "Mohamad Rafli Ramadhan",
+    "nickname": "rafli",
+    "phone": "6281389728952",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "rafli"
+    ]
+  },
+  {
+    "name": "Faza Qinthoro",
+    "nickname": "faza",
+    "phone": "6283866714400",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "faza"
+    ]
+  },
+  {
+    "name": "Novendy Farhanudin",
+    "nickname": "novendy",
+    "phone": "6287805665246",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "novendy"
+    ]
+  },
+  {
+    "name": "Satrio Lehandika Putra",
+    "nickname": "satrio",
+    "phone": "6281210034369",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "satrio"
+    ]
+  },
+  {
+    "name": "Leroy Christopher Gerson",
+    "nickname": "leroy",
+    "phone": "62895807444324",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "leroy"
+    ]
+  },
+  {
+    "name": "Hedy",
+    "nickname": "hedy",
+    "phone": "6281319730729",
+    "division": "Research and Technology",
+    "role": "Staff",
+    "aliases": [
+      "hedy"
+    ]
+  },
+  {
+    "name": "Herlangga Sapoetra",
+    "nickname": "herlangga",
+    "phone": "6289635944536",
+    "division": "Public and Community Relationship",
+    "role": "Head",
+    "aliases": [
+      "herlangga"
+    ]
+  },
+  {
+    "name": "Sahrul",
+    "nickname": "sahrul",
+    "phone": "6289513879958",
+    "division": "Public and Community Relationship",
+    "role": "Deputy Head",
+    "aliases": [
+      "sahrul"
+    ]
+  },
+  {
+    "name": "Iqbal Azhari Pasaribu",
+    "nickname": "iqbal",
+    "phone": "6282260994948",
+    "division": "Public and Community Relationship",
+    "role": "Secretary",
+    "aliases": [
+      "iqbal"
+    ]
+  },
+  {
+    "name": "Az Zahra Nabila",
+    "nickname": "zahra",
+    "phone": "6281388552480",
+    "division": "Public and Community Relationship",
+    "role": "Treasurer",
+    "aliases": [
+      "zahra"
+    ]
+  },
+  {
+    "name": "Thalita Nurul Fauzan",
+    "nickname": "thalita",
+    "phone": "6287775128658",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "thalita"
+    ]
+  },
+  {
+    "name": "Orentscia Januiver S",
+    "nickname": "orentscia",
+    "phone": "6289629819310",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "orentscia"
+    ]
+  },
+  {
+    "name": "Muhammad Aurel Luneto",
+    "nickname": "aurel",
+    "phone": "6281398748724",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "aurel"
+    ]
+  },
+  {
+    "name": "Muhammad Afiq Aqhdaq",
+    "nickname": "afiq",
+    "phone": "6289523245159",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "afiq"
+    ]
+  },
+  {
+    "name": "Kayla Azwa Nasifa",
+    "nickname": "kayla",
+    "phone": "6281511414103",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "kayla"
+    ]
+  },
+  {
+    "name": "Melsiano Rafi Anggara",
+    "nickname": "melsiano",
+    "phone": "6285971144312",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "melsiano"
+    ]
+  },
+  {
+    "name": "Refa Maharani Imaniar",
+    "nickname": "refa",
+    "phone": "628993133521",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "refa"
+    ]
+  },
+  {
+    "name": "Ursulla Ningtyas Kirey",
+    "nickname": "ursulla",
+    "phone": "6285780920745",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "ursulla"
+    ]
+  },
+  {
+    "name": "Zahir Ali Izzaturrahman",
+    "nickname": "zahir",
+    "phone": "6288809873049",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "zahir"
+    ]
+  },
+  {
+    "name": "Diva Almadea Vasya",
+    "nickname": "diva",
+    "phone": "6285780807059",
+    "division": "Public and Community Relationship",
+    "role": "Staff",
+    "aliases": [
+      "diva"
+    ]
+  },
+  {
+    "name": "Sachiko Alexandra Zaida Kendra",
+    "nickname": "sachiko",
+    "phone": "6282114640094",
+    "division": "UKM Development",
+    "role": "Head",
+    "aliases": [
+      "sachiko"
+    ]
+  },
+  {
+    "name": "Nayla Affiyah Syafini",
+    "nickname": "nayla",
+    "phone": "6282113087928",
+    "division": "UKM Development",
+    "role": "Deputy Head",
+    "aliases": [
+      "nayla"
+    ]
+  },
+  {
+    "name": "Askia Fazila Pasha",
+    "nickname": "askia",
+    "phone": "6289606872510",
+    "division": "UKM Development",
+    "role": "Secretary",
+    "aliases": [
+      "askia"
+    ]
+  },
+  {
+    "name": "Nasywa Najiyah",
+    "nickname": "nasywa",
+    "phone": "6285175257340",
+    "division": "UKM Development",
+    "role": "Treasurer",
+    "aliases": [
+      "nasywa"
+    ]
+  },
+  {
+    "name": "Tasyel Triajanisya",
+    "nickname": "tasyel",
+    "phone": "6281386606285",
+    "division": "UKM Development",
+    "role": "Staff",
+    "aliases": [
+      "tasyel"
+    ]
+  },
+  {
+    "name": "Aileen Alvina Fahrudin",
+    "nickname": "aileen",
+    "phone": "6282246542841",
+    "division": "UKM Development",
+    "role": "Staff",
+    "aliases": [
+      "aileen"
+    ]
+  },
+  {
+    "name": "Muhammad Saiful Rohim",
+    "nickname": "saiful",
+    "phone": "6288976653241",
+    "division": "UKM Development",
+    "role": "Staff",
+    "aliases": [
+      "saiful"
+    ]
+  },
+  {
+    "name": "Alfhie Marsya Ayudannie",
+    "nickname": "alfhie",
+    "phone": "6282129958162",
+    "division": "UKM Development",
+    "role": "Staff",
+    "aliases": [
+      "alfhie"
+    ]
+  },
+  {
+    "name": "Rakha Ariya Pratama",
+    "nickname": "rakha",
+    "phone": "62895620010048",
+    "division": "Business And Partnership",
+    "role": "Head",
+    "aliases": [
+      "rakha"
+    ]
+  },
+  {
+    "name": "Muhammad Rakah Yansyah",
+    "nickname": "rakah",
+    "phone": "6281399816110",
+    "division": "Business And Partnership",
+    "role": "Deputy Head",
+    "aliases": [
+      "rakah"
+    ]
+  },
+  {
+    "name": "Rahmadsyah Firdaus",
+    "nickname": "rahmad",
+    "phone": "6282262344445",
+    "division": "Business And Partnership",
+    "role": "Secretary",
+    "aliases": [
+      "rahmad"
+    ]
+  },
+  {
+    "name": "Muhammad Luthfie Alfathin",
+    "nickname": "luthfie",
+    "phone": "62895343279458",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "luthfie"
+    ]
+  },
+  {
+    "name": "Farrel Abda Aghazka",
+    "nickname": "farrel",
+    "phone": "6285775872474",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "farrel"
+    ]
+  },
+  {
+    "name": "Fityah Najwa S.",
+    "nickname": "fityah",
+    "phone": "62895365285294",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "fityah"
+    ]
+  },
+  {
+    "name": "Adelaide Dione Griselda Kean",
+    "nickname": "adelaide",
+    "phone": "6282124985411",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "adelaide"
+    ]
+  },
+  {
+    "name": "Adinda Azka. F",
+    "nickname": "adinda",
+    "phone": "628999766029",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "adinda"
+    ]
+  },
+  {
+    "name": "Muhammad Radja Fadhlurrohman",
+    "nickname": "radja",
+    "phone": "6289506236218",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "radja"
+    ]
+  },
+  {
+    "name": "Aris Irhamni A. P",
+    "nickname": "aris",
+    "phone": "6282242638999",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "aris"
+    ]
+  },
+  {
+    "name": "Laudya Pricilla Putri",
+    "nickname": "laudya",
+    "phone": "6285773980715",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "laudya"
+    ]
+  },
+  {
+    "name": "Vanesa Delova",
+    "nickname": "vanesa",
+    "phone": "6282245267367",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "vanesa"
+    ]
+  },
+  {
+    "name": "Muhammad Syafii",
+    "nickname": "syafii",
+    "phone": "6285280751132",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "syafii"
+    ]
+  },
+  {
+    "name": "Abdullah Ahzam",
+    "nickname": "ahzam",
+    "phone": "6281385996960",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "ahzam"
+    ]
+  },
+  {
+    "name": "Aulia Barokah Khaerani",
+    "nickname": "aulia",
+    "phone": "6285814546449",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "aulia"
+    ]
+  },
+  {
+    "name": "Xaverius Pinontoan",
+    "nickname": "xaverius",
+    "phone": "6289530904805",
+    "division": "Business And Partnership",
+    "role": "Staff",
+    "aliases": [
+      "xaverius"
+    ]
+  },
+  {
+    "name": "Uswatun Hasanah",
+    "nickname": "uswatun",
+    "phone": "6281399082462",
+    "division": "Intellectual and Career Development",
+    "role": "Head",
+    "aliases": [
+      "uswatun"
+    ]
+  },
+  {
+    "name": "Yuda Sandika",
+    "nickname": "yuda",
+    "phone": "6285880376947",
+    "division": "Intellectual and Career Development",
+    "role": "Deputy Head",
+    "aliases": [
+      "yuda"
+    ]
+  },
+  {
+    "name": "Alya Mutiara Lattifa",
+    "nickname": "alya",
+    "phone": "6282140194576",
+    "division": "Intellectual and Career Development",
+    "role": "Secretary",
+    "aliases": [
+      "alya"
+    ]
+  },
+  {
+    "name": "Wandasari Tunggul Hadi Kusumo Astuti",
+    "nickname": "wanda",
+    "phone": "6289655081663",
+    "division": "Intellectual and Career Development",
+    "role": "Treasurer",
+    "aliases": [
+      "wanda"
+    ]
+  },
+  {
+    "name": "Nadhif Ravi Prathama",
+    "nickname": "nadhif",
+    "phone": "6285899627360",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "nadhif"
+    ]
+  },
+  {
+    "name": "Azka Abdillah",
+    "nickname": "azka",
+    "phone": "62895611747030",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "azka"
+    ]
+  },
+  {
+    "name": "Nadia Katerina",
+    "nickname": "nadia",
+    "phone": "6281272939147",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "nadia"
+    ]
+  },
+  {
+    "name": "Yusuf Nugroho",
+    "nickname": "yusuf",
+    "phone": "6287739731174",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "yusuf"
+    ]
+  },
+  {
+    "name": "Defa Luna",
+    "nickname": "defa",
+    "phone": "6283136393806",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "defa"
+    ]
+  },
+  {
+    "name": "Tiara Putri Ramadhani",
+    "nickname": "tiara",
+    "phone": "6281389937026",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "tiara"
+    ]
+  },
+  {
+    "name": "Yolanda Viviani",
+    "nickname": "yolanda",
+    "phone": "6287881155235",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "yolanda"
+    ]
+  },
+  {
+    "name": "Nabila Aprilia",
+    "nickname": "nabila",
+    "phone": "6285591604929",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "nabila"
+    ]
+  },
+  {
+    "name": "Stepanus Teo",
+    "nickname": "teo",
+    "phone": "6285347242701",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "teo"
+    ]
+  },
+  {
+    "name": "Murni Agustina Andini",
+    "nickname": "murni",
+    "phone": "6281351266602",
+    "division": "Intellectual and Career Development",
+    "role": "Staff",
+    "aliases": [
+      "murni"
+    ]
+  },
+  {
+    "name": "Abubakar Adib",
+    "nickname": "adib",
+    "phone": "6287774539010",
+    "division": "Student Advocacy and Welfare",
+    "role": "Head",
+    "aliases": [
+      "adib"
+    ]
+  },
+  {
+    "name": "Sevilla Naeko Lathiifah",
+    "nickname": "sevilla",
+    "phone": "6281399644677",
+    "division": "Student Advocacy and Welfare",
+    "role": "Deputy Head",
+    "aliases": [
+      "sevilla"
+    ]
+  },
+  {
+    "name": "Jauzaa Gina Nabilla",
+    "nickname": "jauzaa",
+    "phone": "62895414743274",
+    "division": "Student Advocacy and Welfare",
+    "role": "Secretary",
+    "aliases": [
+      "jauzaa"
+    ]
+  },
+  {
+    "name": "Zaskia Claudya Yasmin",
+    "nickname": "zaskia",
+    "phone": "6289630668269",
+    "division": "Student Advocacy and Welfare",
+    "role": "Treasurer",
+    "aliases": [
+      "zaskia"
+    ]
+  },
+  {
+    "name": "Farhan Athalla Azis",
+    "nickname": "farhan",
+    "phone": "6287826561330",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "farhan"
+    ]
+  },
+  {
+    "name": "Ainun Kholishah",
+    "nickname": "ainun",
+    "phone": "6285770670401",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "ainun"
+    ]
+  },
+  {
+    "name": "Rifqi Khairan Kamal",
+    "nickname": "rifqi",
+    "phone": "6285213527679",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "rifqi"
+    ]
+  },
+  {
+    "name": "Andhika Putri Lestari",
+    "nickname": "andhika",
+    "phone": "62895361859100",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "andhika"
+    ]
+  },
+  {
+    "name": "Diva Nabilla",
+    "nickname": "diva nabilla",
+    "phone": "62895320303349",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "diva nabilla"
+    ]
+  },
+  {
+    "name": "Moh. Rama Saputra",
+    "nickname": "rama",
+    "phone": "6285179858010",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "rama"
+    ]
+  },
+  {
+    "name": "Mohammad Thareq Ziyad",
+    "nickname": "thareq",
+    "phone": "6289684272432",
+    "division": "Student Advocacy and Welfare",
+    "role": "Staff",
+    "aliases": [
+      "thareq"
     ]
   }
 ]
