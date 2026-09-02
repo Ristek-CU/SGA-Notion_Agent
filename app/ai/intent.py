@@ -16,44 +16,44 @@ def _page_title(pg: Dict[str, Any]) -> str:
 
 
 async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
-    """Kumpulkan data tiket live utk diinjeksi ke konteks LLM."""
+    """Kumpulkan data tiket live pengirim utk diinjeksi ke konteks LLM."""
     try:
         from app.notion import ticket_service as T
-        from app.notion import org_service as O
-        from app.services.contacts import load_contacts
+        from app.services.contacts import get_all_contacts, load_contacts
 
         pages = await T.query_tickets_direct()
-        mems = await O.list_members()
-        nick = (sender_info.get("nickname") or "").lower()
+        sender_phone = sender_info.get("phone")
+        sender_name = (sender_info.get("name") or "").lower()
+        sender_nickname = (sender_info.get("nickname") or "").lower()
 
-        # page-id member milik pengirim (via nama kontak)
-        my_member_id = None
-        name2nick = {}
-        for c in load_contacts():
-            name2nick[(c.get("name") or "").lower()] = (c.get("nickname") or "").lower()
-        for pg in mems:
-            t = None
-            for v in pg.get("properties", {}).values():
-                tt = v.get("title", [])
-                if tt:
-                    t = tt[0].get("plain_text", "")
-                    break
-            if t and name2nick.get(t.lower()) == nick and nick:
-                my_member_id = pg["id"]
-                break
+        # Dapatkan daftar kontak dari Postgres / File
+        contacts = await get_all_contacts() if 'get_all_contacts' in globals() else load_contacts()
+        if not isinstance(contacts, list):
+            contacts = load_contacts()
 
-        mine, others = [], []
-        for p in pages[:60]:
+        mine = []
+        for p in pages:
             e = T._extract(p)
-            line = f"- {e['title']} (status: {e['status']}, prioritas: {e['priority'] or '-'})"
-            if my_member_id and my_member_id in e["pic_ids"]:
-                mine.append(line)
-            else:
-                others.append(line)
+            pic = (e.get("pic") or "").lower()
+            # Jika PIC cocok dengan nama/nickname pengirim
+            is_my_task = False
+            if pic and (sender_name in pic or sender_nickname in pic or pic in sender_name or pic in sender_nickname):
+                is_my_task = True
+            
+            # Atau jika pic_ids mengandung ID milik user di Notion (bila ada)
+            if is_my_task:
+                mine.append(f"- {e['title']} (Status: {e['status']}, Prioritas: {e['priority'] or '-'})")
+
         ctx = ""
         if mine:
-            ctx += "\n\nTASK MILIK USER INI (PIC = dirinya):\n" + "\n".join(mine[:20])
-        ctx += "\n\nTIKET BACKLOG TERBARU (semua orang):\n" + "\n".join(others[:20])
+            ctx += "\n\nTASK SAYA HARI INI (PIC = Saya):\n" + "\n".join(mine)
+        else:
+            ctx += "\n\nTASK SAYA HARI INI: Tidak ada task aktif yang di-assign ke saya.\n"
+
+        ctx += "\n\nATURAN RESPON RORO SAAT JAWAB TASK/SUMMARY:\n"
+        ctx += "1. HANYA sebutkan task dari daftar 'TASK SAYA HARI INI' di atas.\n"
+        ctx += "2. JANGAN PERNAH menampilkan daftar task tim / backlog umum milik orang lain kecuali user meminta daftar seluruh tim.\n"
+        ctx += "3. Tampilkan jawaban dengan ringkas, ramah, dan to the point.\n"
         return ctx
     except Exception:
         return ""
