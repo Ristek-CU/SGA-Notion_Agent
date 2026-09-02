@@ -112,7 +112,7 @@ async def telegram_webhook(token: str, request: Request):
         "pushName": frm.get("first_name") or frm.get("username"),
     }
     tg_username = frm.get("username")
-    asyncio.create_task(_process_and_reply(norm, str(chat.get("id")), tg_username=tg_username))
+    await _process_and_reply(norm, str(chat.get("id")), tg_username=tg_username)
     return {"status": "processing"}
 
 

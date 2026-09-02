@@ -151,7 +151,7 @@ async def handle_webhook(instance: str, payload: WebhookPayload, request: Reques
     if msg_data:
         msg = normalize_waha_message(msg_data)
         if msg["key"].get("id"):
-            asyncio.create_task(process_incoming_message(msg, instance_name=instance))
+            await process_incoming_message(msg, instance_name=instance)
         return {"status": "processing"}
 
     return {"status": "processing"}
