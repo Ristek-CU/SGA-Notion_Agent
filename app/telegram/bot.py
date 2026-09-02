@@ -33,6 +33,8 @@ def _wa_md_to_tg_html(text: str) -> str:
     """Balasan bot ditulis dgn markdown gaya WA (*bold*, _italic_, ~strike~, `mono`).
     Konversi ke HTML parse_mode Telegram secara aman."""
     out = _html.escape(text, quote=False)
+    # Multiline / Single-line code block: ```code``` -> <pre>code</pre>
+    out = _re.sub(r"```(?:\w+)?\n?(.*?)```", r"<pre>\1</pre>", out, flags=_re.DOTALL)
     # Bold: *text* -> <b>text</b>
     out = _re.sub(r"\*([^*\n]+)\*", r"<b>\1</b>", out)
     # Italic: _text_ -> <i>text</i>
@@ -48,15 +50,21 @@ async def send_telegram_message(chat_id: Any, text: str) -> dict:
     token = await get_platform_token("telegram")
     if not token:
         raise RuntimeError("Telegram platform disabled or bot_token not configured")
+    
+    html_text = _wa_md_to_tg_html(text)
     try:
         return await tg_call(token, "sendMessage",
-                             {"chat_id": chat_id, "text": _wa_md_to_tg_html(text),
+                             {"chat_id": chat_id, "text": html_text,
                               "parse_mode": "HTML",
-                              # ponytail: link_preview off utk semua balasan bot — add toggle when needed
                               "link_preview_options": {"is_disabled": True}})
-    except RuntimeError:
-        # markup tak valid (mis. AI ngasih tag aneh) -> kirim polos
-        return await tg_call(token, "sendMessage", {"chat_id": chat_id, "text": text})
+    except Exception as e:
+        # Fallback 1: Coba MarkdownV2 / plain jika parse HTML gagal
+        try:
+            return await tg_call(token, "sendMessage",
+                                 {"chat_id": chat_id, "text": text,
+                                  "link_preview_options": {"is_disabled": True}})
+        except Exception:
+            return await tg_call(token, "sendMessage", {"chat_id": chat_id, "text": text})
 
 
 async def send_typing(chat_id: Any):
