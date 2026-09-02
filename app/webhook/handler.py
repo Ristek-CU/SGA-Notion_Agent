@@ -141,16 +141,16 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
 
 @router.post("/webhook/{instance}")
 async def handle_webhook(instance: str, payload: WebhookPayload, request: Request):
-    # Log incoming webhook
+    raw_body = {}
     try:
         raw_body = await request.json()
         print(f"[WAHA WEBHOOK RECEIVE] instance={instance} event={payload.event} body={str(raw_body)[:300]}")
     except Exception:
         pass
 
-    # Direct WAHA JSON structure (event: "message" / "message.any", payload: message_obj)
-    msg_data = payload.payload or payload.data
-    if msg_data:
+    # Direct WAHA JSON structure (event: "message" / "message.any", payload: message_obj, atau raw_body)
+    msg_data = payload.payload or payload.data or raw_body.get("payload") or raw_body.get("data") or raw_body
+    if msg_data and isinstance(msg_data, dict):
         msg = normalize_waha_message(msg_data)
         if msg["key"].get("id"):
             await process_incoming_message(msg, instance_name=instance)
