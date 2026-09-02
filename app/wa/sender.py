@@ -59,9 +59,9 @@ async def send_whatsapp_message(
 
     # Clean JID/number format
     recipient = number_or_jid
-    if not recipient.endswith("@s.whatsapp.net") and not recipient.endswith("@g.us"):
+    if not recipient.endswith("@s.whatsapp.net") and not recipient.endswith("@g.us") and not recipient.endswith("@c.us"):
         cleaned = "".join(c for c in recipient if c.isdigit())
-        recipient = f"{cleaned}@s.whatsapp.net"
+        recipient = f"{cleaned}@c.us" if cleaned else recipient
 
     payload: Dict[str, Any] = {
         "session": target_instance,
