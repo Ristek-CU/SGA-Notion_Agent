@@ -10,9 +10,10 @@ COMMAND_PATTERNS = [
     ("my_tickets", r"^(tiket|tugas)\s+saya$"),
     ("create_ticket", r"^(buat|create|tambah)\s+(tiket|ticket)\s+(.+)"),
     ("ticket_detail", r"^(detail|cek)\s+(tiket|ticket)\s+(.+)$"),
-    # fleksibel: "update status X ke Done", "update tiket X ke Done", "ubah status X jadi Done", "X dah selesai / kelar"
+    # fleksibel: "update status X ke Done", "update tiket X ke Done", "ubah status X jadi Done", "X dah/udah/dh selesai/kelar/done"
     ("update_status", r"^(?:update|ubah)\s+(?:status|tiket|ticket)?\s*(.+?)\s+(?:menjadi|jadi|ke|to|->)\s+(.+)$"),
-    ("update_status_flexible", r"^(.+?)\s+(?:dah|sudah|dh)?\s*(?:selesai|kelar|done)\b"),
+    ("update_status_flexible", r"^(.+?)\s+(?:dah|udah|sudah|dh)\s+(?:selesai|kelar|done)\b"),
+    ("update_status_flexible2", r"^(.+?)\s+(?:selesai|kelar|done)\b"),
     ("assign_pic", r"^(assign|tunjuk)\s+([a-zA-Z0-9\-]+)\s+(ke|to)\s+(.+)"),
     ("list_divisions", r"^(list|daftar)\s+(divisi|division)$"),
     ("list_members", r"^(list|daftar)\s+(member|anggota)$"),
@@ -36,7 +37,7 @@ def parse_command(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
             elif cmd_type == "update_status":
                 kwargs["ticket_id"] = args[0]
                 kwargs["status"] = args[1]
-            elif cmd_type == "update_status_flexible":
+            elif cmd_type in ("update_status_flexible", "update_status_flexible2"):
                 kwargs["ticket_id"] = args[0]
                 kwargs["status"] = "Done"
                 cmd_type = "update_status"
@@ -52,8 +53,7 @@ def _norm_txt(s: str) -> str:
 
 
 def _resolve_ticket(pages: List[Dict[str, Any]], query: str):
-    """Urutan: kode/full-id -> judul sama persis -> mengandung satu sama lain.
-    Return (page, None) atau (None, daftar_kandidat_ambigu)."""
+    """Urutan: kode/full-id -> judul sama persis -> substring / kata pencocokan terbanyak."""
     page = T._find_by_ticket_prefix(pages, query)
     if page:
         return page, None
@@ -64,20 +64,32 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str):
     exact = [p for p, t in titled if t == q]
     if len(exact) == 1:
         return exact[0], None
-    cand = [(p, t) for p, t in titled if q and t and (q in t or t in q)]
-    if not cand:
+
+    # Partial / word matching
+    words = set(q.split())
+    matched = []
+    for p, t in titled:
+        if not t:
+            continue
+        if q in t or t in q:
+            matched.append((p, t, 100))
+        else:
+            t_words = set(t.split())
+            common = words.intersection(t_words)
+            if common:
+                score = len(common) / len(words)
+                if score >= 0.5:  # minimal 50% kata cocok
+                    matched.append((p, t, score))
+
+    if not matched:
         return None, []
-    if len(cand) == 1:
-        return cand[0][0], None
-    uniq_titles = {t for _, t in cand}
-    if len(uniq_titles) == 1:
-        return cand[0][0], None
-    # ambigu: pilih yang paling pendek (paling spesifik utk query pendek),
-    # kalau seri panjangnya -> minta user perjelas
-    cand.sort(key=lambda x: len(x[1]))
-    if len(cand[0][1]) < len(cand[1][1]):
-        return cand[0][0], None
-    return None, [t for _, t in sorted(cand, key=lambda x: -len(x[1]))[:5]]
+
+    matched.sort(key=lambda x: -x[2])
+    if len(matched) == 1 or (len(matched) > 1 and matched[0][2] > matched[1][2]):
+        return matched[0][0], None
+
+    cand = [p for p, _, _ in matched]
+    return None, [t for _, t, _ in matched[:5]]
 
 
 def _prop(page: Dict[str, Any], key: str):
