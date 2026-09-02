@@ -12,6 +12,13 @@ _identity_cache: Dict[str, tuple[Dict[str, Any], float]] = {}
 CACHE_TTL = 1800.0  # 30 minutes
 
 
+def clear_identity_cache():
+    """Clear cached resolved identities saat kontak ditambah/diupdate/dihapus."""
+    global _identity_cache
+    _identity_cache.clear()
+
+
+
 def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, telegram_username: Optional[str] = None) -> Dict[str, Any]:
     cache_key = f"{raw_identifier}:{push_name or ''}:{telegram_username or ''}"
     now = time.monotonic()

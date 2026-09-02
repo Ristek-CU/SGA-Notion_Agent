@@ -53,6 +53,12 @@ def save_contacts(contacts: List[Dict[str, Any]]):
     os.replace(temp_path, file_path)
     _contacts_cache = contacts
     _last_mtime = os.path.getmtime(file_path)
+    try:
+        from app.services.identity import clear_identity_cache
+        clear_identity_cache()
+    except Exception:
+        pass
+
 
 
 def get_all_contacts() -> List[Dict[str, Any]]:
