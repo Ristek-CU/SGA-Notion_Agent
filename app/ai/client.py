@@ -4,23 +4,26 @@ from typing import List, Dict, Any, Optional
 
 import anthropic
 from app.config import settings
+from app.services.session import session_manager
 
 _anthropic_client: Optional[anthropic.AsyncAnthropic] = None
 
 _UA = "sga-notion-agent/1.0"
 
 
-def _base_headers() -> Dict[str, str]:
+async def _base_headers() -> Dict[str, str]:
+    cfg = await session_manager.get_ai_config()
     return {
-        "x-api-key": settings.anthropic_api_key,
+        "x-api-key": cfg.get("anthropic_api_key") or settings.anthropic_api_key,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
         "user-agent": _UA,
     }
 
 
-def _messages_url() -> str:
-    base = settings.anthropic_base_url.rstrip("/")
+async def _messages_url() -> str:
+    cfg = await session_manager.get_ai_config()
+    base = (cfg.get("anthropic_base_url") or settings.anthropic_base_url).rstrip("/")
     return base if base.endswith("/v1/messages") else f"{base}/v1/messages"
 
 
@@ -70,11 +73,14 @@ async def _raw_create(payload: Dict[str, Any]) -> str:
     except ImportError:
         import httpx as httpx2
 
+    url = await _messages_url()
+    headers = await _base_headers()
+
     async with httpx2.AsyncClient(timeout=120.0) as client:
         async with client.stream(
             "POST",
-            _messages_url(),
-            headers=_base_headers(),
+            url,
+            headers=headers,
             json=payload,
         ) as response:
             return await _parse_body(response)
@@ -86,7 +92,8 @@ async def create_message(
     max_tokens: int = 1000,
     model: Optional[str] = None,
 ) -> str:
-    target_model = model or settings.ai_model
+    ai_cfg = await session_manager.get_ai_config()
+    target_model = model or ai_cfg.get("ai_model") or settings.ai_model
 
     payload: Dict[str, Any] = {
         "model": target_model,

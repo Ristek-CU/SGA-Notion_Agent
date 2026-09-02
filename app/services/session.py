@@ -77,5 +77,31 @@ class SessionManager:
         r = await self.get_redis()
         await r.delete(self._key(phone))
 
+    AI_CONFIG_KEY = "sga:ai:config"
+
+    async def get_ai_config(self) -> Dict[str, Any]:
+        default = {
+            "anthropic_base_url": settings.anthropic_base_url,
+            "anthropic_api_key": settings.anthropic_api_key,
+            "ai_model": settings.ai_model,
+        }
+        try:
+            r = await self.get_redis()
+            raw = await r.get(self.AI_CONFIG_KEY)
+            if not raw:
+                return default
+            return {**default, **json.loads(raw)}
+        except Exception:
+            return default
+
+    async def update_ai_config(self, **updates) -> Dict[str, Any]:
+        cfg = await self.get_ai_config()
+        for k, v in updates.items():
+            if v is not None:
+                cfg[k] = v
+        r = await self.get_redis()
+        await r.set(self.AI_CONFIG_KEY, json.dumps(cfg))
+        return cfg
+
 
 session_manager = SessionManager()

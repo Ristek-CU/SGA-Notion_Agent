@@ -113,6 +113,35 @@ async def update_guard_config(req: GuardConfigUpdate, current_user: str = Depend
     return {"data": state, "error": None, "message": "Guard config updated"}
 
 
+class AIConfigUpdate(BaseModel):
+    anthropic_base_url: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
+    ai_model: Optional[str] = None
+
+
+@router.get("/ai/config")
+async def get_ai_config_endpoint(current_user: str = Depends(verify_token)):
+    cfg = await session_manager.get_ai_config()
+    # Mask API key in response
+    masked = dict(cfg)
+    key = masked.get("anthropic_api_key") or ""
+    if len(key) > 8:
+        masked["anthropic_api_key"] = key[:4] + "..." + key[-4:]
+    return {"data": masked, "error": None, "message": "AI config retrieved"}
+
+
+@router.post("/ai/config")
+async def update_ai_config_endpoint(req: AIConfigUpdate, current_user: str = Depends(verify_token)):
+    updates = req.model_dump(exclude_unset=True)
+    cfg = await session_manager.update_ai_config(**updates)
+    await record_audit_log(current_user, "UPDATE_AI_CONFIG", {"updated_keys": list(updates.keys())})
+    masked = dict(cfg)
+    key = masked.get("anthropic_api_key") or ""
+    if len(key) > 8:
+        masked["anthropic_api_key"] = key[:4] + "..." + key[-4:]
+    return {"data": masked, "error": None, "message": "AI config updated"}
+
+
 @router.get("/system/env")
 def get_system_env(current_user: str = Depends(verify_token)):
     env_info = {
