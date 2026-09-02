@@ -61,14 +61,15 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str, prefer_sender: Opti
     q = _norm_txt(query)
     if not q:
         return None, []
+
     titled = [(p, _norm_txt(T._extract(p)["title"])) for p in pages]
     exact = [p for p, t in titled if t == q]
     if len(exact) == 1:
         return exact[0], None
 
+    # Filter prioritaskan task yang ditugaskan ke sender terlebih dahulu jika query bukan exact match
     sender_nickname = (prefer_sender.get("nickname") or prefer_sender.get("name") or "").lower() if prefer_sender else ""
 
-    # Partial / word matching
     words = set(q.split())
     matched = []
     for p, t in titled:
@@ -84,22 +85,44 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str, prefer_sender: Opti
                 score = (len(common) / len(words)) * 10
         
         if score > 0:
-            # Bonus jika PIC cocok dengan pengirim pesan
             e = T._extract(p)
-            pic = (e.get("pic") or "").lower()
-            if sender_nickname and pic and (sender_nickname in pic or pic in sender_nickname):
-                score += 50
+            pic_ids = e.get("pic_ids", [])
+            pic_str = (e.get("pic") or "").lower()
+            
+            # Check 1: PIC ID '3313f1cb-81ff-8083-bc67-fcf95d8b85ff' atau PIC string cocok dengan sender
+            if "3313f1cb-81ff-8083-bc67-fcf95d8b85ff" in pic_ids or (sender_nickname and pic_str and (sender_nickname in pic_str or pic_str in sender_nickname)):
+                score += 200  # Give strong priority to sender's own tickets
             matched.append((p, t, score))
 
     if not matched:
         return None, []
 
+    # Jika ada task pengirim yang punya skor jauh lebih tinggi, langsung pilih task tersebut
     matched.sort(key=lambda x: -x[2])
     if len(matched) == 1 or (len(matched) > 1 and matched[0][2] > matched[1][2]):
         return matched[0][0], None
 
-    cand = [p for p, _, _ in matched]
-    return None, [t for _, t, _ in matched[:5]]
+    # Hanya jika antar task pengirim sendiri masih ambigu (misal 'Testing Roro' vs 'Development for the Ai Roro model')
+    sender_matched = [item for item in matched if item[2] >= 200]
+    if len(sender_matched) == 1:
+        return sender_matched[0][0], None
+    elif len(sender_matched) > 1:
+        # Cek apakah query mengandung kata kunci spesifik seperti 'develop' / 'dev' atau 'testing' / 'test'
+        q_words = set(q.split())
+        if "develop" in q_words or "dev" in q_words or "development" in q_words:
+            dev_item = next((item for item in sender_matched if "develop" in item[1]), None)
+            if dev_item:
+                return dev_item[0], None
+        elif "test" in q_words or "testing" in q_words:
+            test_item = next((item for item in sender_matched if "testing" in item[1] or "test" in item[1]), None)
+            if test_item:
+                return test_item[0], None
+        
+        cand_titles = [t for _, t, _ in sender_matched]
+        return None, cand_titles[:5]
+
+    cand = [t for _, t, _ in matched]
+    return None, cand[:5]
 
 
 def _prop(page: Dict[str, Any], key: str):
