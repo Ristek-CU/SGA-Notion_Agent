@@ -53,6 +53,7 @@ async def get_wa_status(current_user: str = Depends(verify_token)):
 async def setup_wa_webhook(current_user: str = Depends(verify_token)):
     target_webhook = f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
     payload = {
+        "name": _session_name(),
         "config": {
             "webhooks": [
                 {
@@ -62,7 +63,7 @@ async def setup_wa_webhook(current_user: str = Depends(verify_token)):
             ]
         }
     }
-    res = await _waha_request("PATCH", f"/api/sessions/{_session_name()}", json_body=payload)
+    res = await _waha_request("PUT", f"/api/sessions/{_session_name()}", json_body=payload)
     return {"data": {"target_webhook": target_webhook, "waha_response": res}, "error": None, "message": "WAHA webhook updated"}
 
 

@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Request
@@ -63,87 +64,90 @@ async def _send(reply_override, remote_jid: str, text: str, instance_name: Optio
 
 
 async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None, telegram_username: Optional[str] = None):
-    key = data.get("key", {})
-    msg_id = key.get("id")
-    # Hanya lakukan dedup jika msg_id bukan berupa ID generator manual atau evt_ ID
-    if not msg_id or await is_duplicate_msg(msg_id):
-        print(f"[PROCESS_INCOMING] SKIPPED DEDUP msg_id={msg_id}")
-        return
+    try:
+        key = data.get("key", {})
+        msg_id = key.get("id")
+        # Hanya lakukan dedup jika msg_id bukan berupa ID generator manual atau evt_ ID
+        if not msg_id or await is_duplicate_msg(msg_id):
+            print(f"[PROCESS_INCOMING] SKIPPED DEDUP msg_id={msg_id}")
+            return
 
-    from_me = key.get("fromMe", False)
-    if from_me:
-        return
+        from_me = key.get("fromMe", False)
+        if from_me:
+            return
 
-    remote_jid = key.get("remoteJid", "")
-    is_group = remote_jid.endswith("@g.us")
-    participant = key.get("participant") or remote_jid
+        remote_jid = key.get("remoteJid", "")
+        is_group = remote_jid.endswith("@g.us")
+        participant = key.get("participant") or remote_jid
 
-    # Extract text from message body
-    message_obj = data.get("message", {})
-    text = (
-        message_obj.get("conversation")
-        or message_obj.get("extendedTextMessage", {}).get("text")
-        or ""
-    ).strip()
+        # Extract text from message body
+        message_obj = data.get("message", {})
+        text = (
+            message_obj.get("conversation")
+            or message_obj.get("extendedTextMessage", {}).get("text")
+            or ""
+        ).strip()
 
-    if not text:
-        return
+        if not text:
+            return
 
-    push_name = data.get("pushName")
+        push_name = data.get("pushName")
 
-    # Handle @lid mapping if applicable
-    raw_sender = participant.split("@")[0]
-    if "@lid" in participant:
-        cached_phone = lookup_lid_cache(participant)
-        if cached_phone:
-            raw_sender = cached_phone
+        # Handle @lid mapping if applicable
+        raw_sender = participant.split("@")[0]
+        if "@lid" in participant:
+            cached_phone = lookup_lid_cache(participant)
+            if cached_phone:
+                raw_sender = cached_phone
 
-    # Resolve sender identity (Telegram username dipakai utk cocokkan kontak)
-    from app.services.identity import resolve_identity_async
-    sender_info = await resolve_identity_async(raw_sender, push_name=push_name, telegram_username=telegram_username)
+        # Resolve sender identity (Telegram username dipakai utk cocokkan kontak)
+        from app.services.identity import resolve_identity_async
+        sender_info = await resolve_identity_async(raw_sender, push_name=push_name, telegram_username=telegram_username)
 
-    # Auto-learn LID mapping jika berhasil diresolve ke kontak DB
-    if "@lid" in participant and sender_info.get("is_known") and sender_info.get("phone"):
-        set_lid_cache(participant, sender_info["phone"])
+        # Auto-learn LID mapping jika berhasil diresolve ke kontak DB
+        if "@lid" in participant and sender_info.get("is_known") and sender_info.get("phone"):
+            set_lid_cache(participant, sender_info["phone"])
 
-    # Whitelist check: Abaikan pesan jika user tidak dikenal (tidak ada di daftar kontak/whitelist)
-    if not sender_info.get("is_known"):
-        print(f"[PROCESS_INCOMING] DROPPED UNKNOWN USER raw_sender={raw_sender} participant={participant} push_name={push_name}")
-        return
+        # Whitelist check: Abaikan pesan jika user tidak dikenal (tidak ada di daftar kontak/whitelist)
+        if not sender_info.get("is_known"):
+            print(f"[PROCESS_INCOMING] DROPPED UNKNOWN USER raw_sender={raw_sender} participant={participant} push_name={push_name}")
+            return
 
-    # Save user message to session
-    await session_manager.save_user_message(sender_info["phone"], text)
+        # Save user message to session
+        await session_manager.save_user_message(sender_info["phone"], text)
 
-    # Guard check out-of-scope (hormati toggle persisten di Redis)
-    guard_cfg = await get_guard_state()
-    guard_res = check_out_of_scope(text)
-    if guard_cfg.get("enabled") and guard_res["is_out_of_scope"]:
-        reply_text = guard_res["reason"]
+        # Guard check out-of-scope (hormati toggle persisten di Redis)
+        guard_cfg = await get_guard_state()
+        guard_res = check_out_of_scope(text)
+        if guard_cfg.get("enabled") and guard_res["is_out_of_scope"]:
+            reply_text = guard_res["reason"]
+            await session_manager.save_assistant_response(sender_info["phone"], reply_text)
+            if is_group:
+                await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
+            else:
+                await _send(reply_override, remote_jid, reply_text, instance_name)
+            return
+
+        # Check for commands
+        parsed = parse_command(text)
+        if parsed:
+            cmd_type, args = parsed
+            reply_text = await handle_command(cmd_type, args, sender_info)
+        else:
+            # Fallback to AI intent / ticket / chat
+            reply_text = await handle_smart_message(text, sender_info)
+
+        # Save assistant reply to session
         await session_manager.save_assistant_response(sender_info["phone"], reply_text)
+
+        # Send response back to WA (Gunakan sender_info["phone"] jika remote_jid berupa @lid)
+        target_jid = sender_info["phone"] if "@lid" in remote_jid else remote_jid
         if is_group:
             await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
         else:
-            await _send(reply_override, remote_jid, reply_text, instance_name)
-        return
-
-    # Check for commands
-    parsed = parse_command(text)
-    if parsed:
-        cmd_type, args = parsed
-        reply_text = await handle_command(cmd_type, args, sender_info)
-    else:
-        # Fallback to AI intent / ticket / chat
-        reply_text = await handle_smart_message(text, sender_info)
-
-    # Save assistant reply to session
-    await session_manager.save_assistant_response(sender_info["phone"], reply_text)
-
-    # Send response back to WA (Gunakan sender_info["phone"] jika remote_jid berupa @lid)
-    target_jid = sender_info["phone"] if "@lid" in remote_jid else remote_jid
-    if is_group:
-        await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
-    else:
-        await _send(reply_override, target_jid, reply_text, instance_name)
+            await _send(reply_override, target_jid, reply_text, instance_name)
+    except Exception as e:
+        print(f"[PROCESS_INCOMING_ERROR] Error processing message {data.get('key', {}).get('id')}: {e}\n{traceback.format_exc()}")
 
 
 @router.post("/webhook/{instance}")

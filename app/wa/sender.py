@@ -79,6 +79,8 @@ async def send_whatsapp_message(
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code >= 400:
+            print(f"[WAHA_SEND_ERROR] status={resp.status_code} body={resp.text} session={target_instance} to={recipient}")
         resp.raise_for_status()
         return resp.json()
 
@@ -93,11 +95,11 @@ async def send_direct_message(phone: str, text: str) -> Dict[str, Any]:
 
 async def check_number_status(phone: str, instance: Optional[str] = None) -> Dict[str, Any]:
     target_instance = instance or settings.waha_instance_name
-    url = f"{settings.waha_api_url.rstrip('/')}/api/contacts/{target_instance}/check-phone"
+    url = f"{settings.waha_api_url.rstrip('/')}/api/contacts/check-exists"
     headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
-    payload = {"phone": phone}
+    params = {"phone": phone, "session": target_instance}
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(url, json=payload, headers=headers)
+        resp = await client.get(url, params=params, headers=headers)
         resp.raise_for_status()
         return resp.json()
 

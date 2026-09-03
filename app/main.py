@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
         headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
         target_webhook = f"{settings.backend_public_url.rstrip('/')}/webhook/{settings.waha_instance_name}"
         payload = {
+            "name": settings.waha_instance_name,
             "config": {
                 "webhooks": [
                     {
@@ -27,9 +28,10 @@ async def lifespan(app: FastAPI):
             }
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.patch(f"{waha_url}/api/sessions/{settings.waha_instance_name}", headers=headers, json=payload)
-    except Exception:
-        pass
+            resp = await client.put(f"{waha_url}/api/sessions/{settings.waha_instance_name}", headers=headers, json=payload)
+            print(f"[STARTUP WAHA PUT] status={resp.status_code} body={resp.text[:200]}")
+    except Exception as e:
+        print(f"[STARTUP WAHA PUT ERROR] {e}")
     yield
     # Cleanup tasks
     await session_manager.close()
