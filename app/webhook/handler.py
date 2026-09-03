@@ -9,7 +9,7 @@ from app.services.session import session_manager
 from app.services.store import get_guard_state
 from app.ai.commands import parse_command, handle_command
 from app.ai.intent import handle_smart_message
-from app.wa.sender import send_whatsapp_message, reply_to_group, lookup_lid_cache, set_lid_cache
+from app.wa.sender import send_whatsapp_message, reply_to_group, lookup_lid_cache, set_lid_cache, start_typing, stop_typing
 
 router = APIRouter()
 
@@ -55,6 +55,16 @@ def normalize_waha_message(msg: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+async def _wa_typing_loop(chat_id: str, instance_name: Optional[str], stop_event: asyncio.Event):
+    """Kirim sinyal typing berkala ke WAHA selama AI memproses pesan."""
+    while not stop_event.is_set():
+        await start_typing(chat_id, instance=instance_name)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=3.5)
+        except asyncio.TimeoutError:
+            pass
+
+
 async def _send(reply_override, remote_jid: str, text: str, instance_name: Optional[str]):
     """Kirim balasan via override (mis. Telegram) jika ada, selain itu via WhatsApp."""
     if reply_override is not None:
@@ -64,6 +74,9 @@ async def _send(reply_override, remote_jid: str, text: str, instance_name: Optio
 
 
 async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None, telegram_username: Optional[str] = None):
+    stop_typing_event = asyncio.Event()
+    typing_task = None
+    target_for_typing = ""
     try:
         key = data.get("key", {})
         msg_id = key.get("id")
@@ -79,6 +92,7 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         remote_jid = key.get("remoteJid", "")
         is_group = remote_jid.endswith("@g.us")
         participant = key.get("participant") or remote_jid
+        target_for_typing = remote_jid
 
         # Extract text from message body
         message_obj = data.get("message", {})
@@ -119,6 +133,10 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             print(f"[PROCESS_INCOMING] DROPPED UNKNOWN USER raw_sender={raw_sender} participant={participant} push_name={push_name}")
             return
 
+        # Start WA typing indicator if running on WhatsApp
+        if reply_override is None:
+            typing_task = asyncio.create_task(_wa_typing_loop(target_for_typing, instance_name, stop_typing_event))
+
         # Save user message to session
         await session_manager.save_user_message(sender_info["phone"], text)
 
@@ -158,6 +176,12 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             await _send(reply_override, target_jid, reply_text, instance_name)
     except Exception as e:
         print(f"[PROCESS_INCOMING_ERROR] Error processing message {data.get('key', {}).get('id')}: {e}\n{traceback.format_exc()}")
+    finally:
+        if typing_task:
+            stop_typing_event.set()
+            typing_task.cancel()
+            if target_for_typing and reply_override is None:
+                asyncio.create_task(stop_typing(target_for_typing, instance=instance_name))
 
 
 @router.post("/webhook/{instance}")

@@ -46,7 +46,6 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
         for p in pages:
             e = T._extract(p)
             title = e.get("title", "")
-            title_lower = title.lower()
             status = e.get("status", "")
             
             # Jangan sertakan task yang sudah Done jika user menanyakan task aktif
@@ -68,7 +67,7 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
                 is_mine = True
 
             if is_mine:
-                mine.append(f"- {title} (Status: {status}, Prioritas: {e['priority'] or '-'})")
+                mine.append(f"• *{title}* (Status: {status}, Prioritas: {e['priority'] or '-'})")
 
         ctx = ""
         if mine:
@@ -77,9 +76,11 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
             ctx += "\n\nTASK SAYA HARI INI: Tidak ada task aktif yang di-assign ke saya.\n"
 
         ctx += "\n\nATURAN RESPON RORO SAAT JAWAB TASK/SUMMARY:\n"
-        ctx += "1. Sebutkan SEMUA task dari daftar 'TASK SAYA HARI INI' di atas.\n"
-        ctx += "2. JANGAN PERNAH menampilkan daftar task tim / backlog umum milik orang lain kecuali user meminta daftar seluruh tim.\n"
-        ctx += "3. Tampilkan jawaban dengan ringkas, ramah, dan to the point.\n"
+        ctx += "1. Sebutkan SEMUA task dari daftar 'TASK SAYA HARI INI' di atas dengan format rapi, misal:\n"
+        ctx += "   1. *Judul Task* (Status: ..., Prioritas: ...)\n"
+        ctx += "2. JANGAN PERNAH membuat penomoran tebal ganda seperti '*1 task* *Testing Roro*'.\n"
+        ctx += "3. JANGAN PERNAH menampilkan daftar task tim / backlog umum milik orang lain kecuali user meminta daftar seluruh tim.\n"
+        ctx += "4. Tampilkan jawaban dengan ringkas, ramah, dan to the point.\n"
         return ctx
     except Exception as e:
         return ""

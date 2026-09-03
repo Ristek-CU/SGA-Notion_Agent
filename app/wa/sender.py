@@ -50,6 +50,40 @@ def set_lid_cache(lid: str, phone: str):
     save_lid_cache()
 
 
+def _clean_recipient(number_or_jid: str) -> str:
+    recipient = number_or_jid
+    if not recipient.endswith("@s.whatsapp.net") and not recipient.endswith("@g.us") and not recipient.endswith("@c.us") and not recipient.endswith("@lid"):
+        cleaned = "".join(c for c in recipient if c.isdigit())
+        recipient = f"{cleaned}@c.us" if cleaned else recipient
+    return recipient
+
+
+async def start_typing(chat_id: str, instance: Optional[str] = None):
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/startTyping"
+    recipient = _clean_recipient(chat_id)
+    payload = {"session": target_instance, "chatId": recipient}
+    headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(url, json=payload, headers=headers)
+    except Exception:
+        pass
+
+
+async def stop_typing(chat_id: str, instance: Optional[str] = None):
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/stopTyping"
+    recipient = _clean_recipient(chat_id)
+    payload = {"session": target_instance, "chatId": recipient}
+    headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(url, json=payload, headers=headers)
+    except Exception:
+        pass
+
+
 async def send_whatsapp_message(
     number_or_jid: str,
     text: str,
@@ -60,10 +94,7 @@ async def send_whatsapp_message(
     url = f"{settings.waha_api_url.rstrip('/')}/api/sendText"
 
     # Clean JID/number format
-    recipient = number_or_jid
-    if not recipient.endswith("@s.whatsapp.net") and not recipient.endswith("@g.us") and not recipient.endswith("@c.us"):
-        cleaned = "".join(c for c in recipient if c.isdigit())
-        recipient = f"{cleaned}@c.us" if cleaned else recipient
+    recipient = _clean_recipient(number_or_jid)
 
     payload: Dict[str, Any] = {
         "session": target_instance,
