@@ -135,7 +135,11 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             reply_text = await handle_command(cmd_type, args, sender_info)
         else:
             # Fallback to AI intent / ticket / chat
-            reply_text = await handle_smart_message(text, sender_info)
+            try:
+                reply_text = await handle_smart_message(text, sender_info)
+            except Exception as ai_err:
+                print(f"[AI_ERROR] AI response generation failed: {ai_err}\n{traceback.format_exc()}")
+                reply_text = "Maaf, sistem sedang mengalami kendala sementara saat memproses pesan. Mohon coba beberapa saat lagi ya."
 
         # Save assistant reply to session
         await session_manager.save_assistant_response(sender_info["phone"], reply_text)
