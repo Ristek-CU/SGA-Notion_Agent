@@ -133,16 +133,19 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             print(f"[PROCESS_INCOMING] DROPPED UNKNOWN USER raw_sender={raw_sender} participant={participant} push_name={push_name}")
             return
 
-        # Kirim sinyal read (centang biru) & start typing presence
+        # 1. Pastikan chat di-read (centang biru) terlebih dahulu sampai selesai
         if reply_override is None:
-            asyncio.create_task(
-                send_seen(
+            try:
+                await send_seen(
                     chat_id=remote_jid,
                     message_id=msg_id,
                     participant=participant if is_group else None,
                     instance=instance_name,
                 )
-            )
+                await asyncio.sleep(0.3)  # Jeda singkat agar status read terdaftar sempurna di server WhatsApp
+            except Exception:
+                pass
+            # 2. Setelah status read aktif, baru jalankan typing presence
             typing_task = asyncio.create_task(_wa_typing_loop(target_for_typing, instance_name, stop_typing_event))
 
         # Save user message to session
