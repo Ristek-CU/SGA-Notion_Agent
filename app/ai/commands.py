@@ -148,7 +148,7 @@ def _tid_of(page: Dict[str, Any]) -> str:
 async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[str, Any]) -> str:
     from app.notion import ticket_service as T
     from app.notion import org_service as O
-    from app.services.contacts import load_contacts
+    from app.services.contacts import get_all_contacts
 
     if cmd_type == "help":
         return (
@@ -175,7 +175,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
         division = sender_info.get("division")
         try:
             if pic_name:
-                contacts = load_contacts()
+                contacts = await get_all_contacts()
                 match = next((c for c in contacts
                               if pic_name.lower() in ((c.get("nickname") or "").lower(), (c.get("name") or "").lower())), None)
                 if match:
@@ -239,7 +239,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
                 if nickname:
                     mems = await O.list_members()
                     id2nick = {}
-                    for c in load_contacts():
+                    for c in await get_all_contacts():
                         id2nick[(c.get("name") or "").lower()] = (c.get("nickname") or "").lower()
                     for pg in mems:
                         n = _title_of(pg).lower()
@@ -304,7 +304,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             if not page:
                 return f"🔍 Tiket `{tid}` tidak ditemukan."
             mems = await O.list_members()
-            nick_map = {((c.get("name") or "").lower()): ((c.get("nickname") or "").lower()) for c in load_contacts()}
+            nick_map = {((c.get("name") or "").lower()): ((c.get("nickname") or "").lower()) for c in await get_all_contacts()}
             target = next(
                 (pg for pg in mems
                  if pic_name.lower() in (_title_of(pg).lower(), nick_map.get(_title_of(pg).lower(), "")))
@@ -345,7 +345,8 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             mems = await O.list_members()
             if not mems:
                 return "👥 Data anggota kosong."
-            contacts = {(c.get("name") or "").lower(): c.get("nickname") for c in await load_contacts()}
+            all_c = await get_all_contacts()
+            contacts = {(c.get("name") or "").lower(): c.get("nickname") for c in all_c}
             lines = [f"👥 *Anggota SGA ({len(mems)}):*"]
             for pg in mems[:15]:
                 n = _title_of(pg)

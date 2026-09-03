@@ -1,45 +1,93 @@
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
-from app.services.platform_config import PlatformConfig, save_platform_config, load_platform_config, get_platform_token
+import json
+
+class DummyRedis:
+    def __init__(self):
+        self.store = {}
+
+    async def get(self, key):
+        return self.store.get(key)
+
+    async def set(self, key, value):
+        self.store[key] = value
+
+
+class DummyConnection:
+    def __init__(self, db_store):
+        self.db_store = db_store
+
+    async def fetchrow(self, query, key):
+        if key in self.db_store:
+            return {"config": self.db_store[key]}
+        return None
+
+    async def execute(self, query, key, config_json):
+        self.db_store[key] = config_json
+
+
+class DummyAcquireContext:
+    def __init__(self, conn):
+        self.conn = conn
+
+    async def __aenter__(self):
+        return self.conn
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class DummyPool:
+    def __init__(self, db_store):
+        self.db_store = db_store
+
+    def acquire(self):
+        return DummyAcquireContext(DummyConnection(self.db_store))
+
 
 @pytest.mark.asyncio
-async def test_platform_config_db_flow():
-    mock_conn = AsyncMock()
-    mock_conn.fetchrow.return_value = None
-    
-    mock_pool = MagicMock()
-    mock_cm = AsyncMock()
-    mock_cm.__aenter__.return_value = mock_conn
-    mock_pool.acquire.return_value = mock_cm
+async def test_platform_config_db_flow(monkeypatch):
+    dummy_redis = DummyRedis()
+    db_store = {}
+    dummy_pool = DummyPool(db_store)
 
-    with patch("app.services.database.get_db_pool", return_value=mock_pool), \
-         patch("app.services.session.session_manager.get_redis") as mock_redis:
+    from app.services.session import session_manager
+    async def fake_get_redis():
+        return dummy_redis
+    monkeypatch.setattr(session_manager, "get_redis", fake_get_redis)
 
-        redis_mock = AsyncMock()
-        redis_mock.get.return_value = None
-        mock_redis.return_value = redis_mock
+    import app.services.platform_config as pc_mod
+    async def fake_get_db_pool():
+        return dummy_pool
+    monkeypatch.setattr(pc_mod, "get_db_pool", fake_get_db_pool)
 
-        # Test initial empty load
-        cfg = await load_platform_config("telegram")
-        assert cfg is None
+    # 1. Initially load non-existent config
+    cfg = await pc_mod.load_platform_config("telegram")
+    assert cfg is None
 
-        # Test saving config
-        new_cfg = PlatformConfig(enabled=True, bot_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11")
-        await save_platform_config("telegram", new_cfg)
-        assert mock_conn.execute.called
+    # 2. Save config
+    new_cfg = pc_mod.PlatformConfig(enabled=True, bot_token="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz")
+    await pc_mod.save_platform_config("telegram", new_cfg)
 
-        # Mock fetchrow returning saved record
-        mock_conn.fetchrow.return_value = {
-            "enabled": True,
-            "bot_token": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-            "config_data": "{}"
-        }
+    # Verify written to DB store and Redis
+    assert "telegram" in db_store
+    assert pc_mod._key("telegram") in dummy_redis.store
 
-        loaded_cfg = await load_platform_config("telegram")
-        assert loaded_cfg is not None
-        assert loaded_cfg.enabled is True
-        assert loaded_cfg.bot_token == "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+    # 3. Load config from Redis cache
+    loaded_cache = await pc_mod.load_platform_config("telegram")
+    assert loaded_cache is not None
+    assert loaded_cache.enabled is True
+    assert loaded_cache.bot_token == "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
 
-        token = await get_platform_token("telegram")
-        assert token == "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+    # 4. Simulate Redis cache eviction / miss
+    dummy_redis.store.clear()
+
+    # Load config (should miss Redis, hit DB, and repopulate Redis)
+    loaded_db = await pc_mod.load_platform_config("telegram")
+    assert loaded_db is not None
+    assert loaded_db.enabled is True
+    assert loaded_db.bot_token == "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+    assert pc_mod._key("telegram") in dummy_redis.store
+
+    # 5. Check get_platform_token
+    token = await pc_mod.get_platform_token("telegram")
+    assert token == "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"

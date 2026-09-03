@@ -156,10 +156,11 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                 pic_name = None
                 m = re.search(r"@([A-Za-z0-9_.\-]+)", message)
                 if m:
-                    from app.services.contacts import load_contacts
+                    from app.services.contacts import get_all_contacts
                     from app.notion import org_service as O
                     handle = m.group(1).lower()
-                    contact = next((c for c in load_contacts()
+                    all_c = await get_all_contacts()
+                    contact = next((c for c in all_c
                                     if handle in ((c.get("nickname") or "").lower(), (c.get("name") or "").lower())), None)
                     if contact:
                         mems = await O.list_members()

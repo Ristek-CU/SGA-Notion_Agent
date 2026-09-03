@@ -84,6 +84,8 @@ async def seed_initial_contacts(conn: asyncpg.Connection):
             phone = c.get("phone")
             if not name or not phone:
                 continue
+            from app.services.contacts import normalize_phone
+            norm_phone = normalize_phone(phone)
             nickname = c.get("nickname") or name
             telegram = c.get("telegram")
             division = c.get("division")
@@ -103,7 +105,7 @@ async def seed_initial_contacts(conn: asyncpg.Connection):
                     aliases = EXCLUDED.aliases,
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                name, nickname, phone, telegram, division, role, aliases
+                name, nickname, norm_phone, telegram, division, role, aliases
             )
         logger.info(f"Seeded {len(contacts)} contacts into PostgreSQL")
     except Exception as e:

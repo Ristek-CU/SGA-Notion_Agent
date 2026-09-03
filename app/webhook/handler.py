@@ -65,7 +65,9 @@ async def _send(reply_override, remote_jid: str, text: str, instance_name: Optio
 async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None, telegram_username: Optional[str] = None):
     key = data.get("key", {})
     msg_id = key.get("id")
+    # Hanya lakukan dedup jika msg_id bukan berupa ID generator manual atau evt_ ID
     if not msg_id or await is_duplicate_msg(msg_id):
+        print(f"[PROCESS_INCOMING] SKIPPED DEDUP msg_id={msg_id}")
         return
 
     from_me = key.get("fromMe", False)
@@ -100,8 +102,13 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
     from app.services.identity import resolve_identity_async
     sender_info = await resolve_identity_async(raw_sender, push_name=push_name, telegram_username=telegram_username)
 
+    # Auto-learn LID mapping jika berhasil diresolve ke kontak DB
+    if "@lid" in participant and sender_info.get("is_known") and sender_info.get("phone"):
+        set_lid_cache(participant, sender_info["phone"])
+
     # Whitelist check: Abaikan pesan jika user tidak dikenal (tidak ada di daftar kontak/whitelist)
     if not sender_info.get("is_known"):
+        print(f"[PROCESS_INCOMING] DROPPED UNKNOWN USER raw_sender={raw_sender} participant={participant} push_name={push_name}")
         return
 
     # Save user message to session

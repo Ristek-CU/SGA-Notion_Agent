@@ -5,7 +5,7 @@ from app.wa.sender import send_direct_message
 
 
 async def handle_broadcast_task_notifications(target_division: str = "all", message: str = "") -> Dict[str, Any]:
-    contacts = get_all_contacts()
+    contacts = await get_all_contacts()
     sent_count = 0
     failed_count = 0
 
