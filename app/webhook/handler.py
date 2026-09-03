@@ -99,6 +99,11 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             cached_phone = lookup_lid_cache(participant)
             if cached_phone:
                 raw_sender = cached_phone
+        else:
+            # Check if raw_sender matches any known LID in cache
+            cached_phone = lookup_lid_cache(raw_sender)
+            if cached_phone:
+                raw_sender = cached_phone
 
         # Resolve sender identity (Telegram username dipakai utk cocokkan kontak)
         from app.services.identity import resolve_identity_async
@@ -107,6 +112,7 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         # Auto-learn LID mapping jika berhasil diresolve ke kontak DB
         if "@lid" in participant and sender_info.get("is_known") and sender_info.get("phone"):
             set_lid_cache(participant, sender_info["phone"])
+            set_lid_cache(raw_sender, sender_info["phone"])
 
         # Whitelist check: Abaikan pesan jika user tidak dikenal (tidak ada di daftar kontak/whitelist)
         if not sender_info.get("is_known"):

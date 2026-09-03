@@ -39,7 +39,9 @@ def save_lid_cache():
 
 def lookup_lid_cache(lid: str) -> Optional[str]:
     cache = load_lid_cache()
-    return cache.get(lid)
+    # Check exact match or strip '@lid'
+    clean_lid = lid.split("@")[0]
+    return cache.get(lid) or cache.get(clean_lid) or cache.get(f"{clean_lid}@lid")
 
 
 def set_lid_cache(lid: str, phone: str):
