@@ -148,12 +148,7 @@ async def handle_webhook(instance: str, payload: WebhookPayload, request: Reques
     except Exception:
         pass
 
-    # Abaikan event message.any jika event message juga dikirim oleh WAHA untuk menghindari duplikasi dedup
-    event_type = payload.event or raw_body.get("event")
-    if event_type == "message.any":
-        return {"status": "ignored_event_any"}
-
-    # Direct WAHA JSON structure (event: "message", payload: message_obj, atau raw_body)
+    # Process payload/data from request
     msg_data = payload.payload or payload.data or raw_body.get("payload") or raw_body.get("data") or raw_body
     if msg_data and isinstance(msg_data, dict):
         msg = normalize_waha_message(msg_data)
