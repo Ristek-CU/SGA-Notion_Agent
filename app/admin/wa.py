@@ -68,7 +68,12 @@ async def setup_wa_webhook(req: Optional[WebhookUpdateRequest] = None, current_u
         }
     }
     res = await _waha_request("PUT", f"/api/sessions/{_session_name()}", json_body=payload)
-    return {"data": {"target_webhook": target_webhook, "waha_response": res}, "error": None, "message": "WAHA webhook updated"}
+    # Restart session agar webhook listener aktif di engine WAHA
+    try:
+        await _waha_request("POST", f"/api/sessions/{_session_name()}/restart")
+    except Exception:
+        pass
+    return {"data": {"target_webhook": target_webhook, "waha_response": res}, "error": None, "message": "WAHA webhook updated and session restarted"}
 
 
 @router.get("/wa/qr")
