@@ -58,6 +58,49 @@ def _clean_recipient(number_or_jid: str) -> str:
     return recipient
 
 
+async def set_presence(presence: str, chat_id: Optional[str] = None, instance: Optional[str] = None):
+    """Set global presence (online/offline) atau chat-specific presence (typing/paused)."""
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/{target_instance}/presence"
+    payload: Dict[str, Any] = {"presence": presence}
+    if chat_id:
+        payload["chatId"] = _clean_recipient(chat_id)
+    headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(url, json=payload, headers=headers)
+    except Exception:
+        pass
+
+
+async def send_seen(
+    chat_id: str,
+    message_id: Optional[str] = None,
+    participant: Optional[str] = None,
+    instance: Optional[str] = None,
+):
+    """Kirim sinyal read / centang biru untuk pesan yang diterima."""
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/sendSeen"
+    recipient = _clean_recipient(chat_id)
+    payload: Dict[str, Any] = {
+        "session": target_instance,
+        "chatId": recipient,
+    }
+    if message_id:
+        payload["messageId"] = message_id
+        payload["messageIds"] = [message_id]
+    if participant:
+        payload["participant"] = participant
+
+    headers = {"X-Api-Key": settings.waha_api_key, "Content-Type": "application/json"}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(url, json=payload, headers=headers)
+    except Exception:
+        pass
+
+
 async def start_typing(chat_id: str, instance: Optional[str] = None):
     target_instance = instance or settings.waha_instance_name
     url = f"{settings.waha_api_url.rstrip('/')}/api/startTyping"
@@ -67,6 +110,8 @@ async def start_typing(chat_id: str, instance: Optional[str] = None):
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(url, json=payload, headers=headers)
+            # Set presence typing via /presence endpoint juga agar muncul di profile header
+            await set_presence("typing", chat_id=recipient, instance=target_instance)
     except Exception:
         pass
 
@@ -80,6 +125,7 @@ async def stop_typing(chat_id: str, instance: Optional[str] = None):
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             await client.post(url, json=payload, headers=headers)
+            await set_presence("paused", chat_id=recipient, instance=target_instance)
     except Exception:
         pass
 

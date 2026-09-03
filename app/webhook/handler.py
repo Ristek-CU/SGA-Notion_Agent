@@ -9,7 +9,7 @@ from app.services.session import session_manager
 from app.services.store import get_guard_state
 from app.ai.commands import parse_command, handle_command
 from app.ai.intent import handle_smart_message
-from app.wa.sender import send_whatsapp_message, reply_to_group, lookup_lid_cache, set_lid_cache, start_typing, stop_typing
+from app.wa.sender import send_whatsapp_message, reply_to_group, lookup_lid_cache, set_lid_cache, start_typing, stop_typing, send_seen
 
 router = APIRouter()
 
@@ -133,8 +133,16 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             print(f"[PROCESS_INCOMING] DROPPED UNKNOWN USER raw_sender={raw_sender} participant={participant} push_name={push_name}")
             return
 
-        # Start WA typing indicator if running on WhatsApp
+        # Kirim sinyal read (centang biru) & start typing presence
         if reply_override is None:
+            asyncio.create_task(
+                send_seen(
+                    chat_id=remote_jid,
+                    message_id=msg_id,
+                    participant=participant if is_group else None,
+                    instance=instance_name,
+                )
+            )
             typing_task = asyncio.create_task(_wa_typing_loop(target_for_typing, instance_name, stop_typing_event))
 
         # Save user message to session
