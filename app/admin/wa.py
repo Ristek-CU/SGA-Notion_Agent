@@ -51,7 +51,7 @@ async def get_wa_status(current_user: str = Depends(verify_token)):
 
 @router.post("/wa/webhook-setup")
 async def setup_wa_webhook(current_user: str = Depends(verify_token)):
-    target_webhook = f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
+    target_webhook = settings.waha_webhook_url or f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
     payload = {
         "name": _session_name(),
         "config": {
