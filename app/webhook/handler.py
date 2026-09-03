@@ -152,8 +152,14 @@ async def handle_webhook(instance: str, payload: WebhookPayload, request: Reques
     msg_data = payload.payload or payload.data or raw_body.get("payload") or raw_body.get("data") or raw_body
     if msg_data and isinstance(msg_data, dict):
         msg = normalize_waha_message(msg_data)
+        # Gunakan ID event unik dari outer payload jika inner message ID tidak unik/kosong
+        event_id = payload.event and raw_body.get("id")
+        if not msg["key"].get("id") and event_id:
+            msg["key"]["id"] = event_id
+            
         if msg["key"].get("id"):
-            await process_incoming_message(msg, instance_name=instance)
+            # Jalankan pemrosesan tanpa memblokir FastAPI event loop HTTP response
+            asyncio.create_task(process_incoming_message(msg, instance_name=instance))
         return {"status": "processing"}
 
     return {"status": "processing"}
