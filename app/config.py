@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     admin_password: str = "admin123"
     jwt_secret: str = "supersecretjwtkey"
     backend_public_url: str = "https://notion-api.sudobrew.dev"
-    waha_webhook_url: Optional[str] = None
+    waha_webhook_url: Optional[str] = "http://orc-backend-n48s7m:3000/webhook/wa-bot"
 
     model_config = SettingsConfigDict(
         env_file=".env",

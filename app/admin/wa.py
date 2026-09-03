@@ -49,9 +49,13 @@ async def get_wa_status(current_user: str = Depends(verify_token)):
     return {"data": res, "error": None, "message": "Instance status retrieved"}
 
 
+class WebhookUpdateRequest(BaseModel):
+    url: Optional[str] = None
+
+
 @router.post("/wa/webhook-setup")
-async def setup_wa_webhook(current_user: str = Depends(verify_token)):
-    target_webhook = settings.waha_webhook_url or f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
+async def setup_wa_webhook(req: Optional[WebhookUpdateRequest] = None, current_user: str = Depends(verify_token)):
+    target_webhook = (req and req.url) or settings.waha_webhook_url or f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
     payload = {
         "name": _session_name(),
         "config": {
