@@ -38,7 +38,22 @@ async def put_platform(body: PlatformUpdate, current_user: str = Depends(verify_
         cfg.bot_token = body.bot_token.strip()
     cfg.enabled = body.enabled
     await save_platform_config(PLATFORM, cfg)
-    return {"data": _mask(cfg), "error": None, "message": "Platform config saved"}
+
+    webhook_info = None
+    if cfg.enabled and cfg.bot_token:
+        base = settings.backend_public_url.rstrip("/")
+        url = f"{base}/webhook/telegram/{cfg.bot_token}"
+        try:
+            webhook_res = await _tg(cfg.bot_token, "setWebhook", {"url": url})
+            webhook_info = {"webhook_url": url, "result": webhook_res}
+        except Exception as e:
+            webhook_info = {"webhook_url": url, "error": str(e)}
+
+    return {
+        "data": {**_mask(cfg), "webhook": webhook_info},
+        "error": None,
+        "message": "Platform config saved and webhook configured" if webhook_info else "Platform config saved",
+    }
 
 
 async def _tg(token: str, method: str, payload: Optional[dict] = None):

@@ -49,6 +49,37 @@ async def get_wa_status(current_user: str = Depends(verify_token)):
     return {"data": res, "error": None, "message": "Instance status retrieved"}
 
 
+@router.get("/wa/test")
+async def test_wa_connection(current_user: str = Depends(verify_token)):
+    res = await _waha_request("GET", f"/api/sessions/{_session_name()}")
+    status = res.get("status")
+    me = res.get("me") or {}
+    phone = me.get("id") or me.get("user")
+    push_name = me.get("pushName")
+    engine = res.get("engine") or {}
+
+    target_webhook = settings.waha_webhook_url or f"{settings.backend_public_url.rstrip('/')}/webhook/{_session_name()}"
+    configured_webhooks = (res.get("config") or {}).get("webhooks") or []
+    webhook_matches = any(w.get("url") == target_webhook for w in configured_webhooks)
+
+    is_ok = status == "WORKING"
+    return {
+        "data": {
+            "ok": is_ok,
+            "status": status,
+            "phone": phone,
+            "pushName": push_name,
+            "engine": engine.get("engine"),
+            "engine_state": engine.get("state"),
+            "target_webhook": target_webhook,
+            "webhook_configured": webhook_matches,
+            "configured_webhooks": configured_webhooks,
+        },
+        "error": None if is_ok else f"WhatsApp status is {status}",
+        "message": "WhatsApp connected and working" if is_ok else f"WhatsApp status is {status}",
+    }
+
+
 class WebhookUpdateRequest(BaseModel):
     url: Optional[str] = None
 
@@ -68,12 +99,7 @@ async def setup_wa_webhook(req: Optional[WebhookUpdateRequest] = None, current_u
         }
     }
     res = await _waha_request("PUT", f"/api/sessions/{_session_name()}", json_body=payload)
-    # Restart session agar webhook listener aktif di engine WAHA
-    try:
-        await _waha_request("POST", f"/api/sessions/{_session_name()}/restart")
-    except Exception:
-        pass
-    return {"data": {"target_webhook": target_webhook, "waha_response": res}, "error": None, "message": "WAHA webhook updated and session restarted"}
+    return {"data": {"target_webhook": target_webhook, "waha_response": res}, "error": None, "message": "WAHA webhook updated"}
 
 
 @router.get("/wa/qr")

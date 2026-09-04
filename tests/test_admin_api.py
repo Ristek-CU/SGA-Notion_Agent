@@ -102,6 +102,56 @@ def test_admin_wa_status(mock_waha):
     assert res.json()["data"]["status"] == "WORKING"
 
 
+@patch("app.admin.wa._waha_request")
+def test_admin_wa_test_connection(mock_waha):
+    mock_waha.return_value = {
+        "name": "wa-bot",
+        "status": "WORKING",
+        "me": {"id": "6285111219086@c.us", "pushName": "Bot Admin"},
+        "engine": {"engine": "WEBJS", "state": "CONNECTED"},
+        "config": {
+            "webhooks": [
+                {"url": settings.waha_webhook_url, "events": ["message"]}
+            ]
+        },
+    }
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = client.get("/admin/wa/test", headers=headers)
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["ok"] is True
+    assert data["phone"] == "6285111219086@c.us"
+    assert data["pushName"] == "Bot Admin"
+    assert data["webhook_configured"] is True
+
+
+@patch("app.admin.platforms._tg")
+@patch("app.services.platform_config.save_platform_config")
+@patch("app.services.platform_config.load_platform_config")
+def test_admin_telegram_put_auto_webhook(mock_load, mock_save, mock_tg):
+    from app.services.platform_config import PlatformConfig
+    mock_load.return_value = PlatformConfig(enabled=True, bot_token="123456:ABC-DEF")
+    mock_save.return_value = True
+    mock_tg.return_value = True
+
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    res = client.put(
+        "/admin/platforms/telegram",
+        json={"enabled": True, "bot_token": "123456:ABC-DEF"},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["enabled"] is True
+    assert "webhook" in data
+    assert data["webhook"]["result"] is True
+    mock_tg.assert_called_once()
+
+
 @patch("app.admin.notion.query_tickets_direct")
 @patch("app.admin.notion.get_backlog_stats")
 def test_admin_notion_backlog(mock_stats, mock_tickets):

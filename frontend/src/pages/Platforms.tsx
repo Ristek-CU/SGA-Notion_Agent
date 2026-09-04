@@ -47,6 +47,29 @@ const WASection: React.FC = () => {
     onSuccess: () => refreshAll(),
   });
 
+  const [testNotice, setTestNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const testAction = useMutation({
+    mutationFn: () => fetchApi<any>('/admin/wa/test'),
+    onSuccess: (res: any) => {
+      if (res?.ok) {
+        setTestNotice({
+          kind: 'ok',
+          text: `Koneksi OK: Terhubung ke ${res.phone || 'Unknown'} (Status: ${res.status || 'WORKING'}) - Webhook ${res.webhook_configured ? 'Tervalidasi' : 'Belum Sesuai'}`,
+        });
+      } else {
+        setTestNotice({
+          kind: 'err',
+          text: `Koneksi belum siap: Status ${res?.status || 'UNKNOWN'}`,
+        });
+      }
+      refreshAll();
+    },
+    onError: (e: Error) => {
+      setTestNotice({ kind: 'err', text: `Gagal test koneksi WA: ${e.message}` });
+    },
+  });
+
   if (isLoading) return <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">Loading WA connection...</div>;
   if (isError) {
     return (
@@ -58,7 +81,18 @@ const WASection: React.FC = () => {
             Pastikan service WaHa (<code>{status?.name || 'orc-waha'}</code>) aktif.
           </p>
         </div>
-        <WAButtons runAction={runAction} />
+        <WAButtons runAction={runAction} testAction={testAction} />
+        {testNotice && (
+          <p
+            className={`text-sm break-all ${
+              testNotice.kind === 'ok'
+                ? 'text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg p-3'
+                : 'text-red-600 bg-red-50 border border-red-200 rounded-lg p-3'
+            }`}
+          >
+            {testNotice.text}
+          </p>
+        )}
       </div>
     );
   }
@@ -125,7 +159,19 @@ const WASection: React.FC = () => {
         </div>
       )}
 
-      <WAButtons runAction={runAction} showQr={showQr} />
+      <WAButtons runAction={runAction} showQr={showQr} testAction={testAction} />
+
+      {testNotice && (
+        <p
+          className={`text-sm break-all ${
+            testNotice.kind === 'ok'
+              ? 'text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg p-3'
+              : 'text-red-600 bg-red-50 border border-red-200 rounded-lg p-3'
+          }`}
+        >
+          {testNotice.text}
+        </p>
+      )}
     </div>
   );
 };
@@ -147,7 +193,11 @@ const InfoCard: React.FC<{ label: string; value: string; highlight?: boolean }> 
   </div>
 );
 
-const WAButtons: React.FC<{ runAction: any; showQr?: boolean }> = ({ runAction, showQr }) => (
+const WAButtons: React.FC<{
+  runAction: any;
+  showQr?: boolean;
+  testAction: any;
+}> = ({ runAction, showQr, testAction }) => (
   <div className="flex flex-wrap gap-3">
     <button
       onClick={() => runAction.mutate('/admin/wa/scan')}
@@ -159,11 +209,11 @@ const WAButtons: React.FC<{ runAction: any; showQr?: boolean }> = ({ runAction, 
         : 'Scan / Buat QR'}
     </button>
     <button
-      onClick={() => runAction.mutate('/admin/wa/webhook-setup')}
-      disabled={runAction.isPending}
+      onClick={() => testAction.mutate()}
+      disabled={testAction.isPending}
       className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
     >
-      Connect / Setup Webhook
+      {testAction.isPending ? 'Menguji…' : 'Test Koneksi'}
     </button>
     <button
       onClick={() => runAction.mutate('/admin/wa/refresh')}
@@ -224,13 +274,6 @@ const TelegramCard: React.FC = () => {
           ? `Token valid — bot @${d.username ?? d.bot_username ?? JSON.stringify(d)}`
           : 'Respons kosong dari server.',
       }),
-    onError: (e: Error) => setNotice({ kind: 'err', text: e.message }),
-  });
-
-  const hookMut = useMutation({
-    mutationFn: () => fetchApi<any>('/admin/platforms/telegram/webhook-setup', { method: 'POST' }),
-    onSuccess: (d: any) =>
-      setNotice({ kind: 'ok', text: `Webhook: ${JSON.stringify(d).slice(0, 200)}` }),
     onError: (e: Error) => setNotice({ kind: 'err', text: e.message }),
   });
 
@@ -295,14 +338,7 @@ const TelegramCard: React.FC = () => {
           disabled={testMut.isPending}
           className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
-          {testMut.isPending ? 'Menguji…' : 'Test Token'}
-        </button>
-        <button
-          onClick={() => hookMut.mutate()}
-          disabled={hookMut.isPending}
-          className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
-        >
-          {hookMut.isPending ? 'Menyiapkan webhook…' : 'Setup Webhook'}
+          {testMut.isPending ? 'Menguji…' : 'Test Koneksi'}
         </button>
       </div>
 
