@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     waha_api_key: str = "waha-notion-agent-2026"
     waha_instance_name: str = "wa-bot"
     redis_url: str = "redis://orc-redis-hk08zj:6379"
-    database_url: str = "postgresql://postgres:postgrespassword@orc-postgres-qrhpfc:5432/evolution"
+    database_url: str = "postgresql://postgre:***@sganotionagent-postgres-1hklkb:5432/SGA-Notion_Agent"
     lid_phone_map: str = "62397553336471@lid=6285175019086,62397553336471=6285175019086"
     cache_ttl_backlog_ms: int = 120_000
     cache_ttl_projects_ms: int = 300_000
