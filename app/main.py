@@ -10,6 +10,10 @@ from app.services.session import session_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Start dual priority queue manager
+    from app.services.queue import queue_manager
+    queue_manager.start()
+
     # Setup WAHA Webhook URL secara otomatis saat startup
     try:
         import httpx

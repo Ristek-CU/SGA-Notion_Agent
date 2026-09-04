@@ -181,6 +181,13 @@ async def get_divisions(current_user: str = Depends(verify_token)):
 
 
 # Contacts CRUD
+@router.get("/contacts/divisions")
+async def get_contact_divisions(current_user: str = Depends(verify_token)):
+    contacts = await get_all_contacts()
+    divisions = sorted(list({str(c.get("division")) for c in contacts if c.get("division")}))
+    return {"data": divisions, "error": None, "message": "Contact divisions fetched"}
+
+
 @router.get("/contacts")
 async def list_contacts(current_user: str = Depends(verify_token)):
     contacts = await get_all_contacts()

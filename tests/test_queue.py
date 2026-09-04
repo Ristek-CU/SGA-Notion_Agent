@@ -1,0 +1,124 @@
+import asyncio
+import pytest
+from unittest.mock import AsyncMock, patch
+from fastapi.testclient import TestClient
+from app.main import app
+from app.config import settings
+from app.services.queue import QueueManager
+
+client = TestClient(app)
+
+
+def get_auth_token():
+    res = client.post(
+        "/admin/login",
+        json={"username": settings.admin_user, "password": settings.admin_password},
+    )
+    return res.json()["data"]["token"]
+
+
+def test_contact_divisions_endpoint():
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    res = client.get("/admin/contacts/divisions", headers=headers)
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert isinstance(data, list)
+    assert len(data) > 0
+    assert "BPH" in data
+
+
+@pytest.mark.asyncio
+@patch("app.admin.notify.record_audit_log", new=AsyncMock())
+async def test_queue_endpoints():
+    token = get_auth_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Test status endpoint
+    res = client.get("/admin/queues/status", headers=headers)
+    assert res.status_code == 200
+    body = res.json()["data"]
+    assert "chat_queue" in body
+    assert "broadcast_jobs" in body
+
+    # Also test alias /admin/broadcast/queues
+    res2 = client.get("/admin/broadcast/queues", headers=headers)
+    assert res2.status_code == 200
+
+    # Test enqueue broadcast via API
+    with patch("app.services.queue.QueueManager._run_broadcast_job", new=AsyncMock()):
+        post_res = client.post(
+            "/admin/broadcast",
+            headers=headers,
+            json={
+                "message": "Halo test broadcast",
+                "division": "BPH",
+                "platform": "wa",
+                "delay_seconds": 2.0,
+            },
+        )
+        assert post_res.status_code == 200
+        b_data = post_res.json()["data"]
+        assert b_data["division"] == "BPH"
+        assert b_data["platform"] == "wa"
+        job_id = b_data["id"]
+
+        # Cancel broadcast endpoint
+        cancel_res = client.post(
+            "/admin/broadcast/cancel",
+            headers=headers,
+            json={"job_id": job_id},
+        )
+        assert cancel_res.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_dual_priority_queue_yielding():
+    qm = QueueManager()
+    qm.start()
+
+    events = []
+
+    async def dummy_wa_send(phone, text):
+        events.append(f"send_broadcast_{phone}")
+
+    async def dummy_chat_handler():
+        events.append("chat_processed")
+
+    # Mock contacts for broadcast
+    mock_contacts = [
+        {"name": "User 1", "phone": "111", "division": "BPH"},
+        {"name": "User 2", "phone": "222", "division": "BPH"},
+        {"name": "User 3", "phone": "333", "division": "BPH"},
+    ]
+
+    with patch("app.services.contacts.get_all_contacts", new=AsyncMock(return_value=mock_contacts)), \
+         patch("app.wa.sender.send_direct_message", side_effect=dummy_wa_send):
+
+        job = await qm.enqueue_broadcast(
+            message="Notice",
+            division="BPH",
+            platform="wa",
+            delay_seconds=0.3,
+        )
+        assert job["total"] == 3
+
+        # Wait tiny bit for broadcast to start
+        await asyncio.sleep(0.05)
+
+        # Enqueue high priority chat
+        await qm.enqueue_chat(
+            handler=dummy_chat_handler,
+            sender="Tester",
+            platform="WhatsApp",
+            preview="Hi bot",
+        )
+
+        # Let queue run
+        await asyncio.sleep(3.6)
+
+        # Verify chat processed and broadcast yielded
+        assert "chat_processed" in events
+        assert any(e.startswith("send_broadcast") for e in events)
+
+    await qm.stop()

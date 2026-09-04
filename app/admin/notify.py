@@ -14,12 +14,21 @@ from app.services.notify import notify_pic
 from app.wa.sender import send_direct_message
 from app.config import settings
 
+from app.services.queue import queue_manager
+
 router = APIRouter(tags=["Admin Notify & System"])
 
 
 class BroadcastRequest(BaseModel):
     message: str
-    recipients: List[str]  # phone numbers or contact names
+    division: Optional[str] = "all"
+    platform: Optional[str] = "all"
+    delay_seconds: Optional[float] = 5.0
+    recipients: Optional[List[str]] = None  # optional recipients override
+
+
+class BroadcastCancelRequest(BaseModel):
+    job_id: Optional[str] = None
 
 
 class GuardConfigUpdate(BaseModel):
@@ -29,25 +38,49 @@ class GuardConfigUpdate(BaseModel):
 
 @router.post("/broadcast")
 async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(verify_token)):
-    success_count = 0
-    failed: List[str] = []
-
-    for item in req.recipients:
-        try:
-            await send_direct_message(item, req.message)
-            success_count += 1
-        except Exception:
-            failed.append(item)
-
-    await record_audit_log(current_user, "TRIGGER_BROADCAST", {"recipients_count": len(req.recipients), "success": success_count})
-    return {
-        "data": {
-            "total": len(req.recipients),
-            "success": success_count,
-            "failed": failed,
+    job = await queue_manager.enqueue_broadcast(
+        message=req.message,
+        division=req.division or "all",
+        platform=req.platform or "all",
+        delay_seconds=req.delay_seconds if req.delay_seconds is not None else 5.0,
+        recipients_override=req.recipients,
+    )
+    await record_audit_log(
+        current_user,
+        "TRIGGER_BROADCAST",
+        {
+            "job_id": job["id"],
+            "division": req.division,
+            "platform": req.platform,
+            "total": job["total"],
         },
+    )
+    return {
+        "data": job,
         "error": None,
-        "message": "Broadcast executed",
+        "message": "Broadcast queued",
+    }
+
+
+@router.post("/broadcast/cancel")
+async def cancel_broadcast(req: Optional[BroadcastCancelRequest] = None, current_user: str = Depends(verify_token)):
+    target_id = req.job_id if req else None
+    cancelled = queue_manager.cancel_broadcast(target_id)
+    await record_audit_log(current_user, "CANCEL_BROADCAST", {"job_id": target_id, "cancelled": cancelled})
+    return {
+        "data": {"cancelled": cancelled},
+        "error": None,
+        "message": "Broadcast cancelled" if cancelled else "No active broadcast job found",
+    }
+
+
+@router.get("/broadcast/queues")
+@router.get("/queues/status")
+async def get_queue_status(current_user: str = Depends(verify_token)):
+    return {
+        "data": queue_manager.get_status(),
+        "error": None,
+        "message": "Queue status fetched",
     }
 
 

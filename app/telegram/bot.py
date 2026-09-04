@@ -112,7 +112,15 @@ async def telegram_webhook(token: str, request: Request):
         "pushName": frm.get("first_name") or frm.get("username"),
     }
     tg_username = frm.get("username")
-    await _process_and_reply(norm, str(chat.get("id")), tg_username=tg_username)
+    from app.services.queue import queue_manager
+    queue_manager.start()
+    sender_name = frm.get("first_name") or tg_username or str(chat.get("id"))
+    await queue_manager.enqueue_chat(
+        handler=lambda: _process_and_reply(norm, str(chat.get("id")), tg_username=tg_username),
+        sender=sender_name,
+        platform="Telegram",
+        preview=text,
+    )
     return {"status": "processing"}
 
 

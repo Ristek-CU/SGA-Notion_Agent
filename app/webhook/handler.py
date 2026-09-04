@@ -214,8 +214,18 @@ async def handle_webhook(instance: str, payload: WebhookPayload, request: Reques
             msg["key"]["id"] = event_id
             
         if msg["key"].get("id"):
-            # Jalankan pemrosesan tanpa memblokir FastAPI event loop HTTP response
-            asyncio.create_task(process_incoming_message(msg, instance_name=instance))
+            # Enqueue incoming WA chat to Chat Priority Queue
+            from app.services.queue import queue_manager
+            # Ensure queue manager is running
+            queue_manager.start()
+            sender_preview = msg.get("pushName") or msg["key"].get("participant") or msg["key"].get("remoteJid", "")
+            msg_text = (msg.get("message", {}).get("conversation") or msg.get("message", {}).get("extendedTextMessage", {}).get("text") or "")
+            await queue_manager.enqueue_chat(
+                handler=lambda m=msg, inst=instance: process_incoming_message(m, instance_name=inst),
+                sender=sender_preview,
+                platform="WhatsApp",
+                preview=msg_text,
+            )
         return {"status": "processing"}
 
     return {"status": "processing"}
