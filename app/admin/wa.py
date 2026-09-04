@@ -62,7 +62,7 @@ async def setup_wa_webhook(req: Optional[WebhookUpdateRequest] = None, current_u
             "webhooks": [
                 {
                     "url": target_webhook,
-                    "events": ["message", "message.any"]
+                    "events": ["message"]
                 }
             ]
         }
@@ -103,7 +103,7 @@ async def scan_wa(current_user: str = Depends(verify_token)):
             "webhooks": [
                 {
                     "url": target_webhook,
-                    "events": ["message", "message.any"]
+                    "events": ["message"]
                 }
             ]
         }
