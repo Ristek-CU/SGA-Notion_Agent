@@ -90,12 +90,9 @@ class QueueManager:
 
             try:
                 await self._update_chat_item_status(item_id, "processing")
-                if asyncio.iscoroutinefunction(handler) or hasattr(handler, "__await__"):
-                    res = handler()
-                    if asyncio.iscoroutine(res):
-                        await res
-                else:
-                    handler()
+                res = handler()
+                if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
+                    await res
             except Exception as e:
                 logger.error(f"Error processing chat item {item_id}: {e}", exc_info=True)
             finally:
