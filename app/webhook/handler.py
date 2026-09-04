@@ -80,11 +80,6 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
     try:
         key = data.get("key", {})
         msg_id = key.get("id")
-        # Hanya lakukan dedup jika msg_id bukan berupa ID generator manual atau evt_ ID
-        if not msg_id or await is_duplicate_msg(msg_id):
-            print(f"[PROCESS_INCOMING] SKIPPED DEDUP msg_id={msg_id}")
-            return
-
         from_me = key.get("fromMe", False)
         if from_me:
             return
