@@ -212,8 +212,18 @@ async def handle_webhook(instance: str, payload: WebhookPayload, request: Reques
         event_id = payload.event and raw_body.get("id")
         if not msg["key"].get("id") and event_id:
             msg["key"]["id"] = event_id
+
+        msg_id = msg["key"].get("id")
+        from_me = msg["key"].get("fromMe", False)
+        # Drop jika dari bot sendiri atau jika pesan duplikat sebelum masuk queue
+        if from_me:
+            return {"status": "skipped", "reason": "from_me"}
             
-        if msg["key"].get("id"):
+        if msg_id:
+            if await is_duplicate_msg(msg_id):
+                print(f"[WEBHOOK] DROPPED DUPLICATE BEFORE QUEUE msg_id={msg_id}")
+                return {"status": "duplicate"}
+
             # Enqueue incoming WA chat to Chat Priority Queue
             from app.services.queue import queue_manager
             # Ensure queue manager is running

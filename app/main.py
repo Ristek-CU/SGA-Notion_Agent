@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
                 "webhooks": [
                     {
                         "url": target_webhook,
-                        "events": ["message", "message.any"]
+                        "events": ["message"]
                     }
                 ]
             }
