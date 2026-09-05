@@ -318,6 +318,8 @@ class QueueManager:
                 job["sent"] += 1
             except Exception as e:
                 err_msg = str(e)
+                if "chat not found" in err_msg.lower() and target_info.get("platform") == "telegram":
+                    err_msg = f"{err_msg} (Pengguna belum pernah klik /start atau mengirim pesan ke bot Telegram)"
                 logger.warning(f"Failed sending broadcast to {target_info['target']}: {err_msg}")
                 target_info["status"] = "failed"
                 target_info["error"] = err_msg

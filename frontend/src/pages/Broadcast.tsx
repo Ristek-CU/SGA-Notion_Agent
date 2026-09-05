@@ -532,7 +532,7 @@ export const Broadcast: React.FC = () => {
                                         </span>
                                       )}
                                     </td>
-                                    <td className="px-3 py-2 text-red-600 font-mono text-[10px]">
+                                    <td className="px-3 py-2 text-red-600 font-mono text-[10px] max-w-xs break-words">
                                       {r.error || '-'}
                                     </td>
                                   </tr>
@@ -858,7 +858,7 @@ export const Broadcast: React.FC = () => {
                                 </span>
                               )}
                             </td>
-                            <td className="px-4 py-2.5 font-mono text-[10px] text-red-600 max-w-xs">
+                            <td className="px-4 py-2.5 font-mono text-[10px] text-red-600 max-w-xs break-words">
                               {r.error || '-'}
                             </td>
                           </tr>
