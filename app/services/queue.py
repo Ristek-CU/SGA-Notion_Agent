@@ -128,23 +128,65 @@ class QueueManager:
                     None,
                 )
                 if matched:
-                    # check platform
                     plat = platform.lower()
-                    if plat == "wa" or plat == "whatsapp":
+                    if plat in ("wa", "whatsapp"):
                         if matched.get("phone"):
-                            targets.append({"name": matched.get("name") or r_clean, "platform": "wa", "target": matched.get("phone"), "division": matched.get("division")})
+                            targets.append({
+                                "contact_id": str(matched.get("id") or ""),
+                                "name": matched.get("name") or r_clean,
+                                "platform": "wa",
+                                "target": matched.get("phone"),
+                                "division": matched.get("division") or "Direct",
+                                "status": "pending",
+                                "error": None,
+                                "sent_at": None,
+                            })
                     elif plat == "telegram":
                         if matched.get("telegram"):
-                            targets.append({"name": matched.get("name") or r_clean, "platform": "telegram", "target": matched.get("telegram"), "division": matched.get("division")})
+                            targets.append({
+                                "contact_id": str(matched.get("id") or ""),
+                                "name": matched.get("name") or r_clean,
+                                "platform": "telegram",
+                                "target": matched.get("telegram"),
+                                "division": matched.get("division") or "Direct",
+                                "status": "pending",
+                                "error": None,
+                                "sent_at": None,
+                            })
                     else:
-                        # both/all
                         if matched.get("phone"):
-                            targets.append({"name": matched.get("name") or r_clean, "platform": "wa", "target": matched.get("phone"), "division": matched.get("division")})
+                            targets.append({
+                                "contact_id": str(matched.get("id") or ""),
+                                "name": matched.get("name") or r_clean,
+                                "platform": "wa",
+                                "target": matched.get("phone"),
+                                "division": matched.get("division") or "Direct",
+                                "status": "pending",
+                                "error": None,
+                                "sent_at": None,
+                            })
                         if matched.get("telegram"):
-                            targets.append({"name": matched.get("name") or r_clean, "platform": "telegram", "target": matched.get("telegram"), "division": matched.get("division")})
+                            targets.append({
+                                "contact_id": str(matched.get("id") or ""),
+                                "name": matched.get("name") or r_clean,
+                                "platform": "telegram",
+                                "target": matched.get("telegram"),
+                                "division": matched.get("division") or "Direct",
+                                "status": "pending",
+                                "error": None,
+                                "sent_at": None,
+                            })
                 else:
-                    # Treat raw override as phone for WA
-                    targets.append({"name": r_clean, "platform": "wa", "target": r_clean, "division": "Direct"})
+                    targets.append({
+                        "contact_id": "",
+                        "name": r_clean,
+                        "platform": "wa",
+                        "target": r_clean,
+                        "division": "Direct",
+                        "status": "pending",
+                        "error": None,
+                        "sent_at": None,
+                    })
         else:
             plat = platform.lower()
             for c in all_contacts:
@@ -154,16 +196,51 @@ class QueueManager:
 
                 if plat in ("wa", "whatsapp"):
                     if c.get("phone"):
-                        targets.append({"name": c.get("nickname") or c.get("name"), "platform": "wa", "target": c.get("phone"), "division": div})
+                        targets.append({
+                            "contact_id": str(c.get("id") or ""),
+                            "name": c.get("nickname") or c.get("name"),
+                            "platform": "wa",
+                            "target": c.get("phone"),
+                            "division": div,
+                            "status": "pending",
+                            "error": None,
+                            "sent_at": None,
+                        })
                 elif plat == "telegram":
                     if c.get("telegram"):
-                        targets.append({"name": c.get("nickname") or c.get("name"), "platform": "telegram", "target": c.get("telegram"), "division": div})
+                        targets.append({
+                            "contact_id": str(c.get("id") or ""),
+                            "name": c.get("nickname") or c.get("name"),
+                            "platform": "telegram",
+                            "target": c.get("telegram"),
+                            "division": div,
+                            "status": "pending",
+                            "error": None,
+                            "sent_at": None,
+                        })
                 else:
-                    # all/both
                     if c.get("phone"):
-                        targets.append({"name": c.get("nickname") or c.get("name"), "platform": "wa", "target": c.get("phone"), "division": div})
+                        targets.append({
+                            "contact_id": str(c.get("id") or ""),
+                            "name": c.get("nickname") or c.get("name"),
+                            "platform": "wa",
+                            "target": c.get("phone"),
+                            "division": div,
+                            "status": "pending",
+                            "error": None,
+                            "sent_at": None,
+                        })
                     if c.get("telegram"):
-                        targets.append({"name": c.get("nickname") or c.get("name"), "platform": "telegram", "target": c.get("telegram"), "division": div})
+                        targets.append({
+                            "contact_id": str(c.get("id") or ""),
+                            "name": c.get("nickname") or c.get("name"),
+                            "platform": "telegram",
+                            "target": c.get("telegram"),
+                            "division": div,
+                            "status": "pending",
+                            "error": None,
+                            "sent_at": None,
+                        })
 
         job = {
             "id": job_id,
@@ -177,8 +254,9 @@ class QueueManager:
             "current_recipient": None,
             "status": "running" if targets else "completed",
             "created_at": time.time(),
+            "completed_at": None if targets else time.time(),
             "_cancel_requested": False,
-            "_targets": targets,
+            "recipients": targets,
         }
 
         self.broadcast_jobs.append(job)
@@ -202,18 +280,20 @@ class QueueManager:
         from app.wa.sender import send_direct_message
         from app.telegram.bot import send_telegram_message
 
-        targets = job.get("_targets", [])
+        targets = job.get("recipients", [])
         delay = job.get("delay_seconds", 5.0)
 
         for target_info in targets:
             if job.get("_cancel_requested"):
                 job["status"] = "cancelled"
+                job["completed_at"] = time.time()
                 break
 
             # Yield to chat queue if any chat is queued or processing
             while self.has_active_chats():
                 if job.get("_cancel_requested"):
                     job["status"] = "cancelled"
+                    job["completed_at"] = time.time()
                     return
                 job["status"] = "yielding"
                 await asyncio.sleep(0.5)
@@ -233,9 +313,15 @@ class QueueManager:
                     await send_telegram_message(target_info["target"], text_body)
                 else:
                     await send_direct_message(target_info["target"], text_body)
+                target_info["status"] = "sent"
+                target_info["sent_at"] = time.time()
                 job["sent"] += 1
             except Exception as e:
-                logger.warning(f"Failed sending broadcast to {target_info}: {e}")
+                err_msg = str(e)
+                logger.warning(f"Failed sending broadcast to {target_info['target']}: {err_msg}")
+                target_info["status"] = "failed"
+                target_info["error"] = err_msg
+                target_info["sent_at"] = time.time()
                 job["failed"] += 1
 
             # Sleep between broadcasts with chat yield check
@@ -244,12 +330,14 @@ class QueueManager:
             while elapsed < delay:
                 if job.get("_cancel_requested"):
                     job["status"] = "cancelled"
+                    job["completed_at"] = time.time()
                     return
                 if self.has_active_chats():
                     job["status"] = "yielding"
                     while self.has_active_chats():
                         if job.get("_cancel_requested"):
                             job["status"] = "cancelled"
+                            job["completed_at"] = time.time()
                             return
                         await asyncio.sleep(0.5)
                     job["status"] = "running"
@@ -258,10 +346,11 @@ class QueueManager:
 
         if not job.get("_cancel_requested"):
             job["status"] = "completed"
+            job["completed_at"] = time.time()
         job["current_recipient"] = None
 
-    def _format_broadcast_job(self, job: Dict[str, Any]) -> Dict[str, Any]:
-        return {
+    def _format_broadcast_job(self, job: Dict[str, Any], include_recipients: bool = False) -> Dict[str, Any]:
+        res = {
             "id": job["id"],
             "message": job.get("message", ""),
             "division": job.get("division", "all"),
@@ -273,7 +362,35 @@ class QueueManager:
             "current_recipient": job.get("current_recipient"),
             "status": job.get("status", "pending"),
             "created_at": job.get("created_at"),
+            "completed_at": job.get("completed_at"),
         }
+        if include_recipients:
+            res["recipients"] = job.get("recipients", [])
+        return res
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        for j in self.broadcast_jobs:
+            if j["id"] == job_id:
+                return self._format_broadcast_job(j, include_recipients=True)
+        return None
+
+    def get_broadcast_jobs(self, status_filter: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+        jobs = []
+        for j in reversed(self.broadcast_jobs):
+            st = j.get("status", "")
+            if status_filter == "active":
+                if st not in ("running", "yielding", "pending"):
+                    continue
+            elif status_filter == "history":
+                if st not in ("completed", "cancelled"):
+                    continue
+            elif status_filter and st != status_filter:
+                continue
+            # include recipients for detailed view
+            jobs.append(self._format_broadcast_job(j, include_recipients=True))
+            if len(jobs) >= limit:
+                break
+        return jobs
 
     def get_status(self) -> Dict[str, Any]:
         return {

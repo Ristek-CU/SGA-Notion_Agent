@@ -71,6 +71,76 @@ async def test_queue_endpoints():
         )
         assert cancel_res.status_code == 200
 
+        # Test active jobs endpoint
+        active_res = client.get("/admin/broadcast/active", headers=headers)
+        assert active_res.status_code == 200
+        assert isinstance(active_res.json()["data"], list)
+
+        # Test history jobs endpoint
+        history_res = client.get("/admin/broadcast/history", headers=headers)
+        assert history_res.status_code == 200
+        assert isinstance(history_res.json()["data"], list)
+
+        # Test job detail endpoint
+        detail_res = client.get(f"/admin/broadcast/jobs/{job_id}", headers=headers)
+        assert detail_res.status_code == 200
+        d_data = detail_res.json()["data"]
+        assert d_data["id"] == job_id
+        assert "recipients" in d_data
+
+
+@pytest.mark.asyncio
+async def test_broadcast_recipient_status_tracking():
+    qm = QueueManager()
+    qm.start()
+
+    sent_targets = []
+
+    async def dummy_wa_send(phone, text):
+        if phone == "fail_phone":
+            raise ValueError("Invalid phone number")
+        sent_targets.append(phone)
+
+    mock_contacts = [
+        {"name": "Sukses User", "phone": "628111", "division": "Tech"},
+        {"name": "Gagal User", "phone": "fail_phone", "division": "Tech"},
+    ]
+
+    with patch("app.services.contacts.get_all_contacts", new=AsyncMock(return_value=mock_contacts)), \
+         patch("app.wa.sender.send_direct_message", side_effect=dummy_wa_send):
+
+        job = await qm.enqueue_broadcast(
+            message="Halo tim Tech",
+            division="Tech",
+            platform="wa",
+            delay_seconds=0.01,
+        )
+
+        assert job["total"] == 2
+        # Let worker finish sending both
+        await asyncio.sleep(0.3)
+
+        updated_job = qm.get_job(job["id"])
+        assert updated_job is not None
+        assert updated_job["status"] == "completed"
+        assert updated_job["sent"] == 1
+        assert updated_job["failed"] == 1
+
+        recipients = updated_job["recipients"]
+        assert len(recipients) == 2
+
+        r_success = next(r for r in recipients if r["target"] == "628111")
+        assert r_success["status"] == "sent"
+        assert r_success["error"] is None
+        assert r_success["sent_at"] is not None
+
+        r_fail = next(r for r in recipients if r["target"] == "fail_phone")
+        assert r_fail["status"] == "failed"
+        assert "Invalid phone number" in r_fail["error"]
+        assert r_fail["sent_at"] is not None
+
+    await qm.stop()
+
 
 @pytest.mark.asyncio
 async def test_dual_priority_queue_yielding():

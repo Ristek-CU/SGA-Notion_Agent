@@ -74,6 +74,38 @@ async def cancel_broadcast(req: Optional[BroadcastCancelRequest] = None, current
     }
 
 
+@router.get("/broadcast/active")
+async def get_active_broadcast_jobs(current_user: str = Depends(verify_token)):
+    jobs = queue_manager.get_broadcast_jobs(status_filter="active")
+    return {
+        "data": jobs,
+        "error": None,
+        "message": "Active broadcast jobs fetched",
+    }
+
+
+@router.get("/broadcast/history")
+async def get_history_broadcast_jobs(limit: int = 50, current_user: str = Depends(verify_token)):
+    jobs = queue_manager.get_broadcast_jobs(status_filter="history", limit=limit)
+    return {
+        "data": jobs,
+        "error": None,
+        "message": "History broadcast jobs fetched",
+    }
+
+
+@router.get("/broadcast/jobs/{job_id}")
+async def get_broadcast_job_detail(job_id: str, current_user: str = Depends(verify_token)):
+    job = queue_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Broadcast job not found")
+    return {
+        "data": job,
+        "error": None,
+        "message": "Broadcast job details fetched",
+    }
+
+
 @router.get("/broadcast/queues")
 @router.get("/queues/status")
 async def get_queue_status(current_user: str = Depends(verify_token)):

@@ -8,6 +8,7 @@ import { Tickets } from './pages/Tickets';
 import { TicketDetail } from './pages/TicketDetail';
 import { Members } from './pages/Members';
 import { Broadcast } from './pages/Broadcast';
+import { Queues } from './pages/Queues';
 import { Session } from './pages/Session';
 import { Guard } from './pages/Guard';
 import { Config } from './pages/Config';
@@ -42,6 +43,7 @@ export const App: React.FC = () => {
             <Route path="tickets/:id" element={<TicketDetail />} />
             <Route path="members" element={<Members />} />
             <Route path="broadcast" element={<Broadcast />} />
+            <Route path="queues" element={<Queues />} />
             <Route path="sessions" element={<Session />} />
             <Route path="guard" element={<Guard />} />
             <Route path="config" element={<Config />} />
