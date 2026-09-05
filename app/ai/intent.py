@@ -117,11 +117,11 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
             prio = parsed.get("priority", "Medium") or "Medium"
             desc = parsed.get("description")
 
-            if action in ("rename", "rename_and_status") and title:
+            if action in ("rename", "rename_and_status", "update_status") and title:
                 # cari tiket by judul/kode (resolver sama dgn jalur perintah)
                 from app.ai.commands import _resolve_ticket
                 pages = await T.query_tickets_direct()
-                page, ambig = _resolve_ticket(pages, title)
+                page, ambig = _resolve_ticket(pages, title, prefer_sender=sender_info)
                 if ambig:
                     opts = "\n".join(f"- {t}" for t in ambig)
                     return f"🤔 Ada beberapa tiket mirip \"{title}\" — maksudmu yang mana?\n{opts}"
@@ -134,13 +134,14 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                 if new_title:
                     new_props["Name"] = {"title": [{"text": {"content": new_title}}]}
                 if action in ("update_status", "rename_and_status"):
-                    st = T.normalize_status(parsed.get("new_status") or "")
+                    raw_st = parsed.get("new_status") or parsed.get("status") or ""
+                    st = T.normalize_status(raw_st)
                     if not st:
-                        return "Statusnya belum kebaca. Sebutkan misal: not started / in progress / done."
+                        return f"Status untuk \"{title}\" belum jelas mau diubah ke apa. Kamu bisa sebutkan misal: In progress, Need to review, atau Done ya."
                     new_props["Status"] = {"status": {"name": st}}
                 await T.update_ticket_direct(page["id"], new_props)
                 e = T._extract(page)
-                parts = ["✅ *Tiket berhasil diupdate!*"]
+                parts = [f"✅ Status tiket *{e['title']}* berhasil diupdate menjadi *{new_props['Status']['status']['name']}*!"] if (action == "update_status" and not new_title) else ["✅ *Tiket berhasil diupdate!*"]
                 if new_title:
                     parts += [f"• *Judul:* {new_title}", f"• *Nama lama:* {e['title']}"]
                 else:

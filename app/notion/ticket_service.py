@@ -21,15 +21,22 @@ STATUS_ALIASES = {
     "notstarted": "Not started",
     "belum": "Not started",
     "inprogress": "In progress",
+    "onprogress": "In progress",
+    "onproses": "In progress",
     "doing": "In progress",
     "proses": "In progress",
+    "jalan": "In progress",
+    "sedangjalan": "In progress",
     "review": "Need to review",
     "needtoreview": "Need to review",
     "fix": "Need to fix",
     "needtofix": "Need to fix",
     "blocked": "Blocking",
+    "pending": "Blocking",
     "done": "Done",
     "selesai": "Done",
+    "kelar": "Done",
+    "beres": "Done",
 }
 
 

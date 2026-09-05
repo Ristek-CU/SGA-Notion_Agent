@@ -12,8 +12,9 @@ COMMAND_PATTERNS = [
     ("ticket_detail", r"^(detail|cek)\s+(tiket|ticket)\s+(.+)$"),
     # fleksibel: "update status X ke Done", "update tiket X ke Done", "ubah status X jadi Done", "X dah/udah/dh selesai/kelar/done"
     ("update_status", r"^(?:update|ubah)\s+(?:status|tiket|ticket)?\s*(.+?)\s+(?:menjadi|jadi|ke|to|->)\s+(.+)$"),
-    ("update_status_flexible", r"^(.+?)\s+(?:dah|udah|sudah|dh)\s+(?:selesai|kelar|done)\b"),
-    ("update_status_flexible2", r"^(.+?)\s+(?:selesai|kelar|done)\b"),
+    ("update_status_flexible", r"^(.+?)\s+(?:dah|udah|sudah|dh)\s+(?:selesai|kelar|done|beres)\b"),
+    ("update_status_flexible2", r"^(.+?)\s+(?:selesai|kelar|done|beres)\b"),
+    ("update_status_inprogress", r"^(.+?)\s+(?:dah|udah|sudah|dh|lagi|sedang)?\s*(?:on\s*progress|inprogress|onprogress|in\s*progress|proses|jalan)\b"),
     ("assign_pic", r"^(assign|tunjuk)\s+([a-zA-Z0-9\-]+)\s+(ke|to)\s+(.+)"),
     ("list_divisions", r"^(list|daftar)\s+(divisi|division)$"),
     ("list_members", r"^(list|daftar)\s+(member|anggota)$"),
@@ -37,9 +38,13 @@ def parse_command(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
             elif cmd_type == "update_status":
                 kwargs["ticket_id"] = args[0]
                 kwargs["status"] = args[1]
-            elif cmd_type in ("update_status_flexible", "update_status_flexible2"):
+            elif cmd_type in ("update_status_flexible", "update_status_flexible2") and len(args) >= 1:
                 kwargs["ticket_id"] = args[0]
                 kwargs["status"] = "Done"
+                cmd_type = "update_status"
+            elif cmd_type == "update_status_inprogress" and len(args) >= 1:
+                kwargs["ticket_id"] = args[0]
+                kwargs["status"] = "In progress"
                 cmd_type = "update_status"
             elif cmd_type == "assign_pic":
                 kwargs["ticket_id"] = args[1]
@@ -284,14 +289,14 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             page, ambig = _resolve_ticket(pages, tid, prefer_sender=sender_info)
             if ambig:
                 opts = "\n".join(f"- {t}" for t in ambig)
-                return f"🤔 Ada beberapa tiket mirip \"{tid}\" — maksudmu yang mana?\n{opts}"
+                return f"Ada beberapa tiket mirip *{tid}* nih:\n{opts}\n\nMaksudmu yang mana?"
             if not page:
-                return f"🔍 Tiket `{tid}` tidak ditemukan."
+                return f"Tiket *{tid}* tidak ditemukan di backlog. Boleh cek judulnya lagi atau ketik `tiket saya` ya."
             await T.update_ticket_direct(page["id"], {"Status": {"status": {"name": status_name}}})
             e = T._extract(page)
-            return f"✅ Status *{e['title'][:40]}* sekarang *{status_name}*."
+            return f"✅ Siap! Status tiket *{e['title']}* sudah diupdate jadi *{status_name}*."
         except Exception as e:
-            return f"⚠️ Gagal update status: {type(e).__name__} — opsi valid: {', '.join(T.VALID_STATUSES)}."
+            return f"⚠️ Belum berhasil update status ({type(e).__name__}). Opsi status yang valid: {', '.join(T.VALID_STATUSES)}."
 
     if cmd_type == "assign_pic":
         tid, pic_name = args.get("ticket_id", ""), (args.get("pic_name") or "").strip().lstrip("@")

@@ -20,10 +20,10 @@ def test_parse_command():
     assert args["ticket_id"] == "Development for the Ai Roro model"
     assert args["status"] == "Done"
 
-    cmd, args = parse_command("Development for the Ai Roro model dah selesai")
+    cmd, args = parse_command("Testing roro onprogress, lagi saya test")
     assert cmd == "update_status"
-    assert args["ticket_id"] == "Development for the Ai Roro model"
-    assert args["status"] == "Done"
+    assert args["ticket_id"] == "Testing roro"
+    assert args["status"] == "In progress"
 
 
 @pytest.mark.asyncio
@@ -44,6 +44,6 @@ async def test_handle_command():
          patch("app.notion.ticket_service.update_ticket_direct", new=AsyncMock()) as mock_update:
 
         res = await handle_command("update_status", {"ticket_id": "Development for the Ai Roro model", "status": "Done"}, {"nickname": "Tester"})
-        assert "✅ Status" in res
+        assert "✅" in res
         assert "Done" in res
         mock_update.assert_called_once()
