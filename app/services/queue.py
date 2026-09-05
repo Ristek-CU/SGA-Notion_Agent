@@ -148,6 +148,7 @@ class QueueManager:
                                 "name": matched.get("name") or r_clean,
                                 "platform": "telegram",
                                 "target": matched.get("telegram"),
+                                "telegram_chat_id": matched.get("telegram_chat_id"),
                                 "division": matched.get("division") or "Direct",
                                 "status": "pending",
                                 "error": None,
@@ -171,6 +172,7 @@ class QueueManager:
                                 "name": matched.get("name") or r_clean,
                                 "platform": "telegram",
                                 "target": matched.get("telegram"),
+                                "telegram_chat_id": matched.get("telegram_chat_id"),
                                 "division": matched.get("division") or "Direct",
                                 "status": "pending",
                                 "error": None,
@@ -213,6 +215,7 @@ class QueueManager:
                             "name": c.get("nickname") or c.get("name"),
                             "platform": "telegram",
                             "target": c.get("telegram"),
+                            "telegram_chat_id": c.get("telegram_chat_id"),
                             "division": div,
                             "status": "pending",
                             "error": None,
@@ -236,6 +239,7 @@ class QueueManager:
                             "name": c.get("nickname") or c.get("name"),
                             "platform": "telegram",
                             "target": c.get("telegram"),
+                            "telegram_chat_id": c.get("telegram_chat_id"),
                             "division": div,
                             "status": "pending",
                             "error": None,
@@ -310,7 +314,13 @@ class QueueManager:
 
             try:
                 if target_info["platform"] == "telegram":
-                    await send_telegram_message(target_info["target"], text_body)
+                    from app.services.contacts import get_telegram_chat_id
+                    dest_chat_id = await get_telegram_chat_id(target_info["target"])
+                    if not dest_chat_id and target_info.get("telegram_chat_id"):
+                        dest_chat_id = str(target_info["telegram_chat_id"])
+                    if not dest_chat_id:
+                        raise RuntimeError("telegram_chat_id tidak ditemukan (Pengguna belum pernah klik /start atau mengirim pesan ke bot Telegram)")
+                    await send_telegram_message(dest_chat_id, text_body)
                 else:
                     await send_direct_message(target_info["target"], text_body)
                 target_info["status"] = "sent"

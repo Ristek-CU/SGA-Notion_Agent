@@ -143,6 +143,48 @@ async def test_broadcast_recipient_status_tracking():
 
 
 @pytest.mark.asyncio
+async def test_telegram_broadcast_chat_id_lookup():
+    qm = QueueManager()
+    qm.start()
+
+    sent_chat_ids = []
+
+    async def dummy_tg_send(chat_id, text):
+        sent_chat_ids.append(chat_id)
+
+    mock_contacts = [
+        {"name": "User With ChatID", "telegram": "salman_tg", "telegram_chat_id": "998877", "division": "Tech"},
+        {"name": "User Without ChatID", "telegram": "no_chat_user", "telegram_chat_id": None, "division": "Tech"},
+    ]
+
+    with patch("app.services.contacts.get_all_contacts", new=AsyncMock(return_value=mock_contacts)), \
+         patch("app.telegram.bot.send_telegram_message", side_effect=dummy_tg_send):
+
+        job = await qm.enqueue_broadcast(
+            message="Halo tim Telegram",
+            division="Tech",
+            platform="telegram",
+            delay_seconds=0.01,
+        )
+
+        assert job["total"] == 2
+        await asyncio.sleep(0.3)
+
+        updated_job = qm.get_job(job["id"])
+        assert updated_job is not None
+        assert updated_job["status"] == "completed"
+        assert updated_job["sent"] == 1
+        assert updated_job["failed"] == 1
+        assert "998877" in sent_chat_ids
+
+        r_fail = next(r for r in updated_job["recipients"] if r["target"] == "no_chat_user")
+        assert r_fail["status"] == "failed"
+        assert "telegram_chat_id tidak ditemukan" in r_fail["error"]
+
+    await qm.stop()
+
+
+@pytest.mark.asyncio
 async def test_dual_priority_queue_yielding():
     qm = QueueManager()
     qm.start()

@@ -44,6 +44,7 @@ async def init_db_schema():
         nickname VARCHAR(100),
         phone VARCHAR(50) UNIQUE NOT NULL,
         telegram VARCHAR(100),
+        telegram_chat_id VARCHAR(100),
         division VARCHAR(100),
         role VARCHAR(100),
         aliases TEXT[] DEFAULT '{}',
@@ -52,6 +53,8 @@ async def init_db_schema():
     );
     CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts (phone);
     CREATE INDEX IF NOT EXISTS idx_contacts_telegram ON contacts (telegram);
+    CREATE INDEX IF NOT EXISTS idx_contacts_telegram_chat_id ON contacts (telegram_chat_id);
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(100);
 
     CREATE TABLE IF NOT EXISTS platform_configs (
         name VARCHAR(50) PRIMARY KEY,

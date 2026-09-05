@@ -70,7 +70,7 @@ async def get_all_contacts() -> List[Dict[str, Any]]:
         if pool:
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
-                    "SELECT id, name, nickname, phone, telegram, division, role, aliases FROM contacts ORDER BY name ASC"
+                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases FROM contacts ORDER BY name ASC"
                 )
                 return [dict(r) for r in rows]
     except Exception as e:
@@ -106,7 +106,7 @@ async def find_contact_by_telegram(username: str) -> Optional[Dict[str, Any]]:
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, name, nickname, phone, telegram, division, role, aliases
+                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
                     FROM contacts
                     WHERE LOWER(TRIM(LEADING '@' FROM telegram)) = $1
                     LIMIT 1
@@ -139,7 +139,7 @@ async def find_contact_by_phone(phone: str) -> Optional[Dict[str, Any]]:
         if pool:
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
-                    "SELECT id, name, nickname, phone, telegram, division, role, aliases FROM contacts WHERE phone = $1 LIMIT 1",
+                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases FROM contacts WHERE phone = $1 LIMIT 1",
                     norm
                 )
                 if row:
@@ -165,7 +165,7 @@ async def find_contact_by_push_name(push_name: str) -> Optional[Dict[str, Any]]:
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, name, nickname, phone, telegram, division, role, aliases
+                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
                     FROM contacts
                     WHERE LOWER(name) = $1
                        OR LOWER(nickname) = $1
@@ -256,10 +256,12 @@ async def add_or_update_contact(
     role: Optional[str] = None,
     division: Optional[str] = None,
     nickname: Optional[str] = None,
-    telegram: Optional[str] = None
+    telegram: Optional[str] = None,
+    telegram_chat_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     norm_phone = normalize_phone(phone)
     t = telegram.strip().lstrip("@").lower() if telegram else None
+    t_cid = str(telegram_chat_id).strip() if telegram_chat_id else None
     nick = nickname if (nickname is not None and nickname != "") else name
 
     # 1. Update/insert in DB if connected
@@ -270,18 +272,19 @@ async def add_or_update_contact(
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO contacts (name, nickname, phone, telegram, division, role, aliases)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    INSERT INTO contacts (name, nickname, phone, telegram, telegram_chat_id, division, role, aliases)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (phone) DO UPDATE SET
                         name = COALESCE($1, contacts.name),
                         nickname = COALESCE($2, contacts.nickname),
                         telegram = $4,
-                        division = COALESCE($5, contacts.division),
-                        role = COALESCE($6, contacts.role),
+                        telegram_chat_id = COALESCE($5, contacts.telegram_chat_id),
+                        division = COALESCE($6, contacts.division),
+                        role = COALESCE($7, contacts.role),
                         updated_at = CURRENT_TIMESTAMP
-                    RETURNING id, name, nickname, phone, telegram, division, role, aliases
+                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
                     """,
-                    name or norm_phone, nick, norm_phone, t, division, role, [nick.lower()] if nick else []
+                    name or norm_phone, nick, norm_phone, t, t_cid, division, role, [nick.lower()] if nick else []
                 )
                 res = dict(row)
                 # Keep file in sync as backup
@@ -293,7 +296,7 @@ async def add_or_update_contact(
         logger.warning(f"DB add_or_update_contact error: {e}")
 
     # Fallback to file-based
-    res = _add_or_update_contact_file(name, norm_phone, role, division, nickname, telegram)
+    res = _add_or_update_contact_file(name, norm_phone, role, division, nickname, telegram, telegram_chat_id=t_cid)
     return res
 
 
@@ -314,7 +317,15 @@ def _sync_contact_to_file(c_dict: Dict[str, Any]):
         pass
 
 
-def _add_or_update_contact_file(name: Optional[str], phone: str, role: Optional[str] = None, division: Optional[str] = None, nickname: Optional[str] = None, telegram: Optional[str] = None) -> Dict[str, Any]:
+def _add_or_update_contact_file(
+    name: Optional[str],
+    phone: str,
+    role: Optional[str] = None,
+    division: Optional[str] = None,
+    nickname: Optional[str] = None,
+    telegram: Optional[str] = None,
+    telegram_chat_id: Optional[str] = None,
+) -> Dict[str, Any]:
     contacts = _load_contacts_from_file()
     norm_phone = normalize_phone(phone)
     updated = False
@@ -328,6 +339,8 @@ def _add_or_update_contact_file(name: Optional[str], phone: str, role: Optional[
         new_contact["division"] = division
     if nickname is not None and nickname != "":
         new_contact["nickname"] = nickname
+    if telegram_chat_id is not None:
+        new_contact["telegram_chat_id"] = str(telegram_chat_id).strip()
     if telegram is not None:
         t = telegram.strip().lstrip("@").lower()
         if t:
@@ -381,3 +394,107 @@ def _delete_contact_file(phone: str) -> bool:
         _save_contacts_to_file(filtered)
         return True
     return False
+
+
+async def update_contact_telegram_chat_id(telegram_username: str, chat_id: str | int) -> Optional[Dict[str, Any]]:
+    """Simpan telegram_chat_id kontak secara permanen di PostgreSQL & Redis cache."""
+    if not telegram_username or not chat_id:
+        return None
+    u = telegram_username.strip().lower().lstrip("@").rstrip("_")
+    cid = str(chat_id).strip()
+    if not u or not cid:
+        return None
+
+    # Update di Redis cache cepat
+    try:
+        from app.services.session import session_manager
+        r = await session_manager.get_redis()
+        await r.set(f"tg:chat_id:{u}", cid)
+    except Exception as e:
+        logger.warning(f"Redis set tg:chat_id error: {e}")
+
+    # Update di PostgreSQL
+    try:
+        from app.services.database import get_db_pool
+        pool = await get_db_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    UPDATE contacts
+                    SET telegram_chat_id = $1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE LOWER(TRIM(LEADING '@' FROM telegram)) = $2
+                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    """,
+                    cid, u
+                )
+                if row:
+                    res = dict(row)
+                    _sync_contact_to_file(res)
+                    from app.services.identity import clear_identity_cache
+                    clear_identity_cache()
+                    return res
+    except Exception as e:
+        logger.warning(f"DB update_contact_telegram_chat_id error: {e}")
+
+    # Fallback to file-based
+    contacts = _load_contacts_from_file()
+    for idx, c in enumerate(contacts):
+        tg = (c.get("telegram") or "").strip().lower().lstrip("@").rstrip("_")
+        if tg and tg == u:
+            contacts[idx]["telegram_chat_id"] = cid
+            _save_contacts_to_file(contacts)
+            return contacts[idx]
+    return None
+
+
+async def get_telegram_chat_id(username_or_id: str | int) -> Optional[str]:
+    """Cari numeric telegram_chat_id berdasarkan username atau kembalikan id jika sudah numeric."""
+    if not username_or_id:
+        return None
+    val = str(username_or_id).strip()
+    # Jika sudah numeric (dengan atau tanpa minus untuk supergroup/channel)
+    if val.lstrip("-").isdigit():
+        return val
+
+    u = val.lower().lstrip("@").rstrip("_")
+    # 1. Cek Redis cache
+    try:
+        from app.services.session import session_manager
+        r = await session_manager.get_redis()
+        cached = await r.get(f"tg:chat_id:{u}")
+        if cached:
+            return str(cached)
+    except Exception:
+        pass
+
+    # 2. Cek database
+    try:
+        from app.services.database import get_db_pool
+        pool = await get_db_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                cid = await conn.fetchval(
+                    """
+                    SELECT telegram_chat_id
+                    FROM contacts
+                    WHERE LOWER(TRIM(LEADING '@' FROM telegram)) = $1
+                      AND telegram_chat_id IS NOT NULL AND telegram_chat_id != ''
+                    LIMIT 1
+                    """,
+                    u
+                )
+                if cid:
+                    return str(cid)
+    except Exception as e:
+        logger.warning(f"DB get_telegram_chat_id error: {e}")
+
+    # 3. Fallback ke file contacts.json
+    for c in _load_contacts_from_file():
+        tg = (c.get("telegram") or "").strip().lower().lstrip("@").rstrip("_")
+        if tg and tg == u and c.get("telegram_chat_id"):
+            return str(c.get("telegram_chat_id"))
+
+    return None
+

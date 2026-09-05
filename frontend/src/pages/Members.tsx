@@ -6,16 +6,19 @@ interface Contact {
   name: string;
   phone: string;
   telegram?: string;
+  telegram_chat_id?: string;
   nickname?: string;
   role?: string;
   division?: string;
 }
 
 const stripAt = (s: string) => s.trim().replace(/^@+/, '');
-const waTgCell = (c: Contact) =>
-  [c.phone?.trim(), c.telegram?.trim() ? `@${stripAt(c.telegram)}` : ''].filter(Boolean).join(' / ') || '-';
+const waTgCell = (c: Contact) => {
+  const tgPart = c.telegram?.trim() ? `@${stripAt(c.telegram)}${c.telegram_chat_id ? ` (ID: ${c.telegram_chat_id})` : ''}` : '';
+  return [c.phone?.trim(), tgPart].filter(Boolean).join(' / ') || '-';
+};
 
-const EMPTY_FORM = { name: '', phone: '', telegram: '', nickname: '', role: '', division: '' };
+const EMPTY_FORM = { name: '', phone: '', telegram: '', telegram_chat_id: '', nickname: '', role: '', division: '' };
 
 const DIVISIONS = [
   'BPH',
@@ -80,7 +83,15 @@ export const Members: React.FC = () => {
 
   const openAdd = () => { setForm(EMPTY_FORM); setEditingPhone(null); setShowModal(true); };
   const openEdit = (c: Contact) => {
-    setForm({ name: c.name || '', phone: c.phone || '', telegram: stripAt(c.telegram || ''), nickname: c.nickname || '', role: c.role || '', division: c.division || '' });
+    setForm({
+      name: c.name || '',
+      phone: c.phone || '',
+      telegram: stripAt(c.telegram || ''),
+      telegram_chat_id: c.telegram_chat_id || '',
+      nickname: c.nickname || '',
+      role: c.role || '',
+      division: c.division || '',
+    });
     setEditingPhone(c.phone);
     setShowModal(true);
   };
@@ -88,7 +99,11 @@ export const Members: React.FC = () => {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.phone) return;
-    const body = { ...form, telegram: stripAt(form.telegram) };
+    const body = {
+      ...form,
+      telegram: stripAt(form.telegram),
+      telegram_chat_id: form.telegram_chat_id.trim() || undefined,
+    };
     if (editingPhone) updateMut.mutate({ phone: editingPhone, body });
     else createMut.mutate(body);
   };
@@ -161,7 +176,8 @@ export const Members: React.FC = () => {
               ['name', 'Nama', true, ''],
               ['nickname', 'Nickname', false, ''],
               ['phone', 'Phone (62…)', true, ''],
-              ['telegram', 'Telegram', false, 'tanpa @ (boleh ketik @, sistem hapus otomatis)'],
+              ['telegram', 'Telegram Username', false, 'tanpa @ (boleh ketik @, sistem hapus otomatis)'],
+              ['telegram_chat_id', 'Telegram Chat ID (Numeric)', false, 'Opsional (terisi otomatis saat user chat ke bot)'],
             ].map(([key, label, req, helper]) => (
               <label key={key as string} className="block">
                 <span className="text-xs font-semibold text-slate-500 uppercase">{label}{req ? ' *' : ''}</span>

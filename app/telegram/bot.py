@@ -112,11 +112,18 @@ async def telegram_webhook(token: str, request: Request):
         "pushName": frm.get("first_name") or frm.get("username"),
     }
     tg_username = frm.get("username")
+    chat_id_str = str(chat.get("id", ""))
+
+    # Auto-save telegram_chat_id permanen di DB & Redis cache
+    if tg_username and chat_id_str:
+        from app.services.contacts import update_contact_telegram_chat_id
+        asyncio.create_task(update_contact_telegram_chat_id(tg_username, chat_id_str))
+
     from app.services.queue import queue_manager
     queue_manager.start()
-    sender_name = frm.get("first_name") or tg_username or str(chat.get("id"))
+    sender_name = frm.get("first_name") or tg_username or chat_id_str
     await queue_manager.enqueue_chat(
-        handler=lambda: _process_and_reply(norm, str(chat.get("id")), tg_username=tg_username),
+        handler=lambda: _process_and_reply(norm, chat_id_str, tg_username=tg_username),
         sender=sender_name,
         platform="Telegram",
         preview=text,

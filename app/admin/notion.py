@@ -54,6 +54,7 @@ class ContactCreateRequest(BaseModel):
     role: Optional[str] = None
     division: Optional[str] = None
     telegram: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
 
 
 class ContactUpdateRequest(BaseModel):
@@ -63,6 +64,7 @@ class ContactUpdateRequest(BaseModel):
     role: Optional[str] = None
     division: Optional[str] = None
     telegram: Optional[str] = None
+    telegram_chat_id: Optional[str] = None
 
 
 @router.get("/notion/backlog")
@@ -196,13 +198,17 @@ async def list_contacts(current_user: str = Depends(verify_token)):
 
 @router.post("/contacts")
 async def create_contact(req: ContactCreateRequest, current_user: str = Depends(verify_token)):
-    contact = await add_or_update_contact(req.name, req.phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
+    contact = await add_or_update_contact(
+        req.name, req.phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram, telegram_chat_id=req.telegram_chat_id
+    )
     return {"data": contact, "error": None, "message": "Contact saved"}
 
 
 @router.put("/contacts/{phone}")
 async def update_contact(phone: str, req: ContactUpdateRequest, current_user: str = Depends(verify_token)):
-    contact = await add_or_update_contact(req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram)
+    contact = await add_or_update_contact(
+        req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram, telegram_chat_id=req.telegram_chat_id
+    )
     return {"data": contact, "error": None, "message": "Contact updated"}
 
 

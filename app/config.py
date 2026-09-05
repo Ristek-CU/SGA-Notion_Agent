@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     admin_user: str = "admin"
     admin_password: str = "admin123"
     jwt_secret: str = "supersecretjwtkey"
-    backend_public_url: str = "https://notion-api.sudobrew.dev"
+    backend_public_url: str = "https://roro-api.mannn.app"
     waha_webhook_url: Optional[str] = "http://sga-notion-agent-selrus:3000/webhook/wa-bot"
 
     model_config = SettingsConfigDict(
