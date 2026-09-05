@@ -195,3 +195,25 @@ async def fetch_bot_jid(instance: Optional[str] = None) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+async def resolve_contact_phone_from_waha(lid_or_jid: str, instance: Optional[str] = None) -> Optional[str]:
+    """Resolve phone number from WAHA contact metadata for a given LID or JID."""
+    target_instance = instance or settings.waha_instance_name
+    clean_id = lid_or_jid.strip()
+    if "@" not in clean_id:
+        clean_id = f"{clean_id}@lid"
+    url = f"{settings.waha_api_url.rstrip('/')}/api/{target_instance}/contacts/{clean_id}"
+    headers = {"X-Api-Key": settings.waha_api_key}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                jid = data.get("id") or ""
+                if "@c.us" in jid or "@s.whatsapp.net" in jid:
+                    return jid.split("@")[0]
+    except Exception:
+        pass
+    return None
+

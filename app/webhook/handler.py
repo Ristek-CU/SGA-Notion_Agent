@@ -9,7 +9,16 @@ from app.services.session import session_manager
 from app.services.store import get_guard_state
 from app.ai.commands import parse_command, handle_command
 from app.ai.intent import handle_smart_message
-from app.wa.sender import send_whatsapp_message, reply_to_group, lookup_lid_cache, set_lid_cache, start_typing, stop_typing, send_seen
+from app.wa.sender import (
+    send_whatsapp_message,
+    reply_to_group,
+    lookup_lid_cache,
+    set_lid_cache,
+    resolve_contact_phone_from_waha,
+    start_typing,
+    stop_typing,
+    send_seen,
+)
 
 router = APIRouter()
 
@@ -106,11 +115,15 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         raw_sender = participant.split("@")[0]
         if "@lid" in participant:
             cached_phone = lookup_lid_cache(participant)
+            if not cached_phone:
+                cached_phone = await resolve_contact_phone_from_waha(participant, instance=instance_name)
             if cached_phone:
                 raw_sender = cached_phone
         else:
-            # Check if raw_sender matches any known LID in cache
+            # Check if raw_sender matches any known LID in cache or WAHA
             cached_phone = lookup_lid_cache(raw_sender)
+            if not cached_phone and len(raw_sender) > 13:
+                cached_phone = await resolve_contact_phone_from_waha(f"{raw_sender}@lid", instance=instance_name)
             if cached_phone:
                 raw_sender = cached_phone
 
@@ -119,9 +132,13 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         sender_info = await resolve_identity_async(raw_sender, push_name=push_name, telegram_username=telegram_username)
 
         # Auto-learn LID mapping jika berhasil diresolve ke kontak DB
-        if "@lid" in participant and sender_info.get("is_known") and sender_info.get("phone"):
-            set_lid_cache(participant, sender_info["phone"])
-            set_lid_cache(raw_sender, sender_info["phone"])
+        if sender_info.get("is_known") and sender_info.get("phone"):
+            if "@lid" in participant:
+                set_lid_cache(participant, sender_info["phone"])
+                set_lid_cache(raw_sender, sender_info["phone"])
+            elif len(raw_sender) > 13:
+                set_lid_cache(f"{raw_sender}@lid", sender_info["phone"])
+                set_lid_cache(raw_sender, sender_info["phone"])
 
         # Whitelist check: Abaikan pesan jika user tidak dikenal (tidak ada di daftar kontak/whitelist)
         if not sender_info.get("is_known"):
@@ -174,8 +191,8 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         # Save assistant reply to session
         await session_manager.save_assistant_response(sender_info["phone"], reply_text)
 
-        # Send response back to WA (Gunakan sender_info["phone"] jika remote_jid berupa @lid)
-        target_jid = sender_info["phone"] if "@lid" in remote_jid else remote_jid
+        # Send response back to WA (Gunakan sender_info["phone"] jika remote_jid berupa @lid atau LID numeric)
+        target_jid = sender_info["phone"] if ("@lid" in remote_jid or len(remote_jid.split("@")[0]) > 13) else remote_jid
         if is_group:
             await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
         else:
