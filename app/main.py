@@ -10,6 +10,13 @@ from app.services.session import session_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize DB pool and schema at startup
+    try:
+        from app.services.database import get_db_pool
+        await get_db_pool()
+    except Exception as e:
+        print(f"[STARTUP DB INIT ERROR] {e}")
+
     # Start dual priority queue manager
     from app.services.queue import queue_manager
     queue_manager.start()

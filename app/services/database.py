@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 from typing import Optional, List, Dict, Any
 import asyncpg
 from app.config import settings
@@ -8,28 +9,33 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 _pool: Optional[asyncpg.Pool] = None
+_pool_lock = asyncio.Lock()
 
 
 async def get_db_pool() -> Optional[asyncpg.Pool]:
     global _pool
-    if _pool is None:
-        try:
-            db_url = settings.database_url
-            # Fix URL format if needed
-            if db_url.startswith("postgres://"):
-                db_url = db_url.replace("postgres://", "postgresql://", 1)
-            
-            _pool = await asyncpg.create_pool(
-                dsn=db_url,
-                min_size=1,
-                max_size=10,
-                command_timeout=15,
-            )
-            await init_db_schema()
-        except Exception as e:
-            logger.warning(f"Could not connect to PostgreSQL ({e}), operating in fallback mode")
-            return None
-    return _pool
+    if _pool is not None:
+        return _pool
+
+    async with _pool_lock:
+        if _pool is None:
+            try:
+                db_url = settings.database_url
+                # Fix URL format if needed
+                if db_url.startswith("postgres://"):
+                    db_url = db_url.replace("postgres://", "postgresql://", 1)
+                
+                _pool = await asyncpg.create_pool(
+                    dsn=db_url,
+                    min_size=1,
+                    max_size=10,
+                    command_timeout=15,
+                )
+                await init_db_schema()
+            except Exception as e:
+                logger.warning(f"Could not connect to PostgreSQL ({e}), operating in fallback mode")
+                return None
+        return _pool
 
 
 async def init_db_schema():
