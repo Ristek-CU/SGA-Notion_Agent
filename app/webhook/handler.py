@@ -82,7 +82,13 @@ async def _send(reply_override, remote_jid: str, text: str, instance_name: Optio
         await send_whatsapp_message(remote_jid, text, instance=instance_name)
 
 
-async def process_incoming_message(data: Dict[str, Any], instance_name: Optional[str] = None, reply_override=None, telegram_username: Optional[str] = None):
+async def process_incoming_message(
+    data: Dict[str, Any],
+    instance_name: Optional[str] = None,
+    reply_override=None,
+    telegram_username: Optional[str] = None,
+    telegram_chat_id: Optional[str | int] = None,
+):
     stop_typing_event = asyncio.Event()
     typing_task = None
     target_for_typing = ""
@@ -127,9 +133,14 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
             if cached_phone:
                 raw_sender = cached_phone
 
-        # Resolve sender identity (Telegram username dipakai utk cocokkan kontak)
+        # Resolve sender identity (Telegram username / chat_id dipakai utk cocokkan kontak)
         from app.services.identity import resolve_identity_async
-        sender_info = await resolve_identity_async(raw_sender, push_name=push_name, telegram_username=telegram_username)
+        sender_info = await resolve_identity_async(
+            raw_sender,
+            push_name=push_name,
+            telegram_username=telegram_username,
+            telegram_chat_id=telegram_chat_id,
+        )
 
         # Auto-learn LID mapping jika berhasil diresolve ke kontak DB
         if sender_info.get("is_known") and sender_info.get("phone"):

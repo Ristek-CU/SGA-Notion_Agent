@@ -254,35 +254,32 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             return f"⚠️ Gagal mengambil tiket: {type(e).__name__}"
 
     if cmd_type == "my_tickets":
-        nickname = (sender_info.get("nickname") or "").lower()
         try:
+            from app.ai.intent import get_user_member_ids
             pages = await T.query_tickets_direct()
+            sender_member_ids, member_id_to_name, aliases = await get_user_member_ids(sender_info)
             mine = []
             for p in pages:
-                pic = _prop(p, "PIC").get("relation", [])
-                people = _prop(p, "Assignee").get("people", [])
-                names = []
-                for rel in pic:
-                    names.append(rel.get("id", ""))
-                for pe in people:
-                    names.append((pe.get("name") or "").lower())
-                if not names:
-                    continue
-                # match via members db id -> nama -> nickname
-                if nickname:
-                    mems = await O.list_members()
-                    id2nick = {}
-                    for c in await get_all_contacts():
-                        id2nick[(c.get("name") or "").lower()] = (c.get("nickname") or "").lower()
-                    for pg in mems:
-                        n = _title_of(pg).lower()
-                        if id2nick.get(n) == nickname and pg["id"] in names:
-                            st = _prop(p, "Status").get("status", {}).get("name", "?")
-                            mine.append(f"- `{_tid_of(p)}` {_title_of(p)} ({st})")
+                e = T._extract(p)
+                title = e.get("title", "")
+                status = e.get("status", "")
+                pic_ids = set(e.get("pic_ids", []))
+                pic_names = [member_id_to_name.get(pid, "").lower() for pid in pic_ids]
+
+                is_mine = bool(pic_ids.intersection(sender_member_ids))
+                if not is_mine:
+                    for p_name in pic_names:
+                        if p_name and any(alias in p_name or p_name in alias for alias in aliases):
+                            is_mine = True
                             break
+
+                if is_mine:
+                    mine.append(f"- `{_tid_of(p)}` {title} ({status})")
+
             if not mine:
                 return f"📋 Tidak ada tiket yang ditugaskan ke kamu saat ini."
-            return f"📋 *Tiket Ditugaskan ke {sender_info.get('nickname')}:*\n" + "\n".join(mine[:10])
+            nick = sender_info.get("nickname") or (sender_info.get("name") or "Kamu").split()[0]
+            return f"📋 *Tiket Ditugaskan ke {nick}:*\n" + "\n".join(mine[:10])
         except Exception as e:
             return f"⚠️ Gagal mengambil tiketmu: {type(e).__name__}"
 

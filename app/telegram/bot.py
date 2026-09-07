@@ -11,6 +11,7 @@ import httpx
 from typing import Dict, Any
 from fastapi import APIRouter, Request
 from app.services.platform_config import get_platform_token
+from app.services.formatter import format_for_telegram
 
 router = APIRouter()
 
@@ -26,24 +27,10 @@ async def tg_call(token: str, method: str, payload: Dict[str, Any] | None = None
         return data.get("result", {})
 
 
-_MD_BOLD = _re.compile(r"\*([^*\n]+)\*")
-
-
 def _wa_md_to_tg_html(text: str) -> str:
-    """Balasan bot ditulis dgn markdown gaya WA (*bold*, _italic_, ~strike~, `mono`).
+    """Balasan bot ditulis dgn markdown gaya WA / standar (*bold*, _italic_, ~strike~, `mono`, [link](url)).
     Konversi ke HTML parse_mode Telegram secara aman."""
-    out = _html.escape(text, quote=False)
-    # Multiline / Single-line code block: ```code``` -> <pre>code</pre>
-    out = _re.sub(r"```(?:\w+)?\n?(.*?)```", r"<pre>\1</pre>", out, flags=_re.DOTALL)
-    # Bold: *text* -> <b>text</b>
-    out = _re.sub(r"\*([^*\n]+)\*", r"<b>\1</b>", out)
-    # Italic: _text_ -> <i>text</i>
-    out = _re.sub(r"_([^_\n]+)_", r"<i>\1</i>", out)
-    # Strikethrough: ~text~ -> <s>text</s>
-    out = _re.sub(r"~([^~\n]+)~", r"<s>\1</s>", out)
-    # Inline code: `text` -> <code>text</code>
-    out = _re.sub(r"`([^`\n]+)`", r"<code>\1</code>", out)
-    return out
+    return format_for_telegram(text)
 
 
 async def send_telegram_message(chat_id: Any, text: str) -> dict:
@@ -123,7 +110,7 @@ async def telegram_webhook(token: str, request: Request):
     queue_manager.start()
     sender_name = frm.get("first_name") or tg_username or chat_id_str
     await queue_manager.enqueue_chat(
-        handler=lambda: _process_and_reply(norm, chat_id_str, tg_username=tg_username),
+        handler=lambda: _process_and_reply(norm, chat_id_str, tg_username=tg_username, tg_chat_id=chat_id_str),
         sender=sender_name,
         platform="Telegram",
         preview=text,
@@ -131,7 +118,7 @@ async def telegram_webhook(token: str, request: Request):
     return {"status": "processing"}
 
 
-async def _process_and_reply(norm: dict, chat_id: str, tg_username: str | None = None):
+async def _process_and_reply(norm: dict, chat_id: str, tg_username: str | None = None, tg_chat_id: str | None = None):
     """Jalankan pipeline WaHa lalu balas via Telegram sendMessage.
 
     reply_override mengarahkan semua balasan non-group ke Telegram tanpa
@@ -148,7 +135,12 @@ async def _process_and_reply(norm: dict, chat_id: str, tg_username: str | None =
         sent.append(text)
 
     try:
-        await process_incoming_message(norm, reply_override=tg_send, telegram_username=tg_username)
+        await process_incoming_message(
+            norm,
+            reply_override=tg_send,
+            telegram_username=tg_username,
+            telegram_chat_id=tg_chat_id or chat_id,
+        )
     finally:
         stop.set()
         typing_task.cancel()

@@ -51,8 +51,11 @@ def set_lid_cache(lid: str, phone: str):
     save_lid_cache()
 
 
+from app.services.formatter import format_for_whatsapp
+
+
 def normalize_whatsapp_markdown(text: str) -> str:
-    """Konversi markdown standar (**bold**, ***bold italic***) ke WhatsApp markdown (*bold*).
+    """Konversi markdown standar (**bold**, ***bold italic***, [link](url)) ke WhatsApp markdown (*bold*).
     
     WhatsApp hanya mendukung:
     *bold* (single asterisk)
@@ -61,13 +64,7 @@ def normalize_whatsapp_markdown(text: str) -> str:
     ```code block``` (triple backtick)
     `inline code` (single backtick)
     """
-    if not text:
-        return ""
-    # Convert ***bold italic*** -> *_bold italic_*
-    text = re.sub(r"\*{3,}([^*\n]+?)\*{3,}", r"*_\1_*", text)
-    # Convert **bold** -> *bold*
-    text = re.sub(r"\*{2}([^*\n]+?)\*{2}", r"*\1*", text)
-    return text
+    return format_for_whatsapp(text)
 
 
 def _clean_recipient(number_or_jid: str) -> str:

@@ -149,6 +149,39 @@ async def find_contact_by_telegram(username: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+async def find_contact_by_telegram_chat_id(chat_id: str | int) -> Optional[Dict[str, Any]]:
+    if not chat_id:
+        return None
+    cid = str(chat_id).strip()
+    if not cid:
+        return None
+
+    try:
+        from app.services.database import get_db_pool
+        pool = await get_db_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    FROM contacts
+                    WHERE telegram_chat_id = $1
+                    LIMIT 1
+                    """,
+                    cid
+                )
+                if row:
+                    return dict(row)
+    except Exception as e:
+        logger.warning(f"DB find_contact_by_telegram_chat_id error: {e}")
+
+    # Fallback to local
+    for c in _load_contacts_from_file():
+        if str(c.get("telegram_chat_id") or "").strip() == cid:
+            return c
+    return None
+
+
 async def find_contact_by_phone(phone: str) -> Optional[Dict[str, Any]]:
     if not phone:
         return None

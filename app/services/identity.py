@@ -2,9 +2,11 @@ import time
 from typing import Dict, Any, Optional
 from app.services.contacts import (
     find_contact_by_telegram,
+    find_contact_by_telegram_chat_id,
     find_contact_by_phone,
     find_contact_by_push_name,
     find_name_by_phone,
+    find_contact_by_phone_sync,
     normalize_phone,
     format_title_case,
     _load_contacts_from_file,
@@ -20,8 +22,13 @@ def clear_identity_cache():
     _identity_cache.clear()
 
 
-async def resolve_identity_async(raw_identifier: str, push_name: Optional[str] = None, telegram_username: Optional[str] = None) -> Dict[str, Any]:
-    cache_key = f"{raw_identifier}:{push_name or ''}:{telegram_username or ''}"
+async def resolve_identity_async(
+    raw_identifier: str,
+    push_name: Optional[str] = None,
+    telegram_username: Optional[str] = None,
+    telegram_chat_id: Optional[str | int] = None,
+) -> Dict[str, Any]:
+    cache_key = f"{raw_identifier}:{push_name or ''}:{telegram_username or ''}:{telegram_chat_id or ''}"
     now = time.monotonic()
     
     if cache_key in _identity_cache:
@@ -33,9 +40,11 @@ async def resolve_identity_async(raw_identifier: str, push_name: Optional[str] =
     phone = normalize_phone(raw_identifier) if raw_identifier and raw_identifier.replace("+", "").isdigit() else None
     matched_contact = None
 
-    # 0. Username Telegram -> kontak
+    # 0. Telegram lookup (username first, then telegram_chat_id)
     if telegram_username:
         matched_contact = await find_contact_by_telegram(telegram_username)
+    if not matched_contact and telegram_chat_id:
+        matched_contact = await find_contact_by_telegram_chat_id(telegram_chat_id)
 
     # 1. Phone lookup
     if not matched_contact and phone:
@@ -76,9 +85,14 @@ async def resolve_identity_async(raw_identifier: str, push_name: Optional[str] =
     return result
 
 
-def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, telegram_username: Optional[str] = None) -> Dict[str, Any]:
+def resolve_identity(
+    raw_identifier: str,
+    push_name: Optional[str] = None,
+    telegram_username: Optional[str] = None,
+    telegram_chat_id: Optional[str | int] = None,
+) -> Dict[str, Any]:
     """Sync wrapper using cache or sync lookups."""
-    cache_key = f"{raw_identifier}:{push_name or ''}:{telegram_username or ''}"
+    cache_key = f"{raw_identifier}:{push_name or ''}:{telegram_username or ''}:{telegram_chat_id or ''}"
     now = time.monotonic()
     if cache_key in _identity_cache:
         res, exp = _identity_cache[cache_key]
@@ -96,6 +110,13 @@ def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, teleg
         for c in contacts:
             tg = (c.get("telegram") or "").strip().lower().lstrip("@").rstrip("_")
             if tg and tg == u:
+                matched_contact = c
+                break
+
+    if not matched_contact and telegram_chat_id:
+        cid = str(telegram_chat_id).strip()
+        for c in contacts:
+            if str(c.get("telegram_chat_id") or "").strip() == cid:
                 matched_contact = c
                 break
 

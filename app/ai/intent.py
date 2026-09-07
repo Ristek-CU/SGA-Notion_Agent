@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from app.ai.client import create_message
 from app.ai.prompts import SYSTEM_PROMPT, EXTRACTION_PROMPT, CHAT_PROMPT
 import app.notion.ticket_service as T
@@ -15,53 +15,71 @@ def _page_title(pg: Dict[str, Any]) -> str:
     return ""
 
 
+async def get_user_member_ids(sender_info: Dict[str, Any]) -> Tuple[set, Dict[str, str], List[str]]:
+    """Resolve dynamic member IDs in Notion Member Database for a given sender.
+    Returns:
+        (sender_member_ids, member_id_to_name, aliases)
+    """
+    from app.notion.org_service import list_members
+    from app.services.contacts import get_all_contacts, normalize_phone
+
+    sender_phone = normalize_phone(sender_info.get("phone", ""))
+    sender_name = (sender_info.get("name") or "").lower()
+    sender_nickname = (sender_info.get("nickname") or "").lower()
+
+    contacts = await get_all_contacts()
+    sender_contact = next(
+        (c for c in contacts if normalize_phone(c.get("phone", "")) == sender_phone),
+        None
+    )
+    if not sender_contact and sender_name:
+        sender_contact = next(
+            (c for c in contacts if (c.get("name") or "").lower() == sender_name or (c.get("nickname") or "").lower() == sender_nickname),
+            None
+        )
+
+    aliases = [sender_name, sender_nickname]
+    if sender_contact:
+        if sender_contact.get("name"):
+            aliases.append(sender_contact.get("name").lower())
+        if sender_contact.get("nickname"):
+            aliases.append(sender_contact.get("nickname").lower())
+        aliases.extend([a.lower() for a in sender_contact.get("aliases", [])])
+    aliases = [a for a in set(aliases) if a]
+
+    mems = await list_members()
+    sender_member_ids = set()
+    member_id_to_name = {}
+    for m in mems:
+        props = m.get("properties", {})
+        name_t = props.get("Member Name", {}).get("title", [])
+        if not name_t:
+            for v in props.values():
+                if v.get("type") == "title":
+                    name_t = v.get("title", [])
+                    break
+        m_name = name_t[0].get("plain_text", "").strip() if name_t else ""
+        phone_rt = props.get("WhatsApp", {}).get("rich_text", []) or props.get("Phone", {}).get("rich_text", [])
+        m_phone = phone_rt[0].get("plain_text", "").strip() if phone_rt else ""
+        mid = m["id"]
+        if m_name:
+            member_id_to_name[mid] = m_name
+
+        if m_phone and sender_phone and normalize_phone(m_phone) == sender_phone:
+            sender_member_ids.add(mid)
+        if m_name and (m_name.lower() in aliases or any(a == m_name.lower() for a in aliases)):
+            sender_member_ids.add(mid)
+
+    return sender_member_ids, member_id_to_name, aliases
+
+
 async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
     """Kumpulkan data tiket live pengirim utk diinjeksi ke konteks LLM."""
     try:
         from app.notion import ticket_service as T
-        from app.notion.org_service import list_members
-        from app.services.contacts import get_all_contacts, normalize_phone
 
         pages = await T.query_tickets_direct()
-        sender_phone = normalize_phone(sender_info.get("phone", ""))
-        sender_name = (sender_info.get("name") or "").lower()
-        sender_nickname = (sender_info.get("nickname") or "").lower()
-
-        # Load contacts & find sender aliases and member IDs
-        contacts = await get_all_contacts()
-        sender_contact = next(
-            (c for c in contacts if normalize_phone(c.get("phone", "")) == sender_phone),
-            None
-        )
-        aliases = [sender_name, sender_nickname]
-        if sender_contact:
-            if sender_contact.get("name"):
-                aliases.append(sender_contact.get("name").lower())
-            if sender_contact.get("nickname"):
-                aliases.append(sender_contact.get("nickname").lower())
-            aliases.extend([a.lower() for a in sender_contact.get("aliases", [])])
-        aliases = [a for a in set(aliases) if a]
-
-        # Map member IDs in Notion Member Database to sender
-        mems = await list_members()
-        sender_member_ids = set()
-        member_id_to_name = {}
-        for m in mems:
-            props = m.get("properties", {})
-            name_t = props.get("Member Name", {}).get("title", [])
-            m_name = name_t[0].get("plain_text", "").strip() if name_t else ""
-            phone_rt = props.get("WhatsApp", {}).get("rich_text", [])
-            m_phone = phone_rt[0].get("plain_text", "").strip() if phone_rt else ""
-            mid = m["id"]
-            if m_name:
-                member_id_to_name[mid] = m_name
-
-            # Check phone match
-            if m_phone and sender_phone and normalize_phone(m_phone) == sender_phone:
-                sender_member_ids.add(mid)
-            # Check name match
-            if m_name and m_name.lower() in aliases:
-                sender_member_ids.add(mid)
+        sender_member_ids, member_id_to_name, aliases = await get_user_member_ids(sender_info)
 
         # In Notion DB, PIC is a Relation property pointing to Member Pages.
         mine = []
