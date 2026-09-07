@@ -152,6 +152,90 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                 parts.append(f"Cek: `detail tiket {T.ticket_code(page['id'])}`")
                 return "\n".join(parts)
 
+            if action == "update_profile":
+                field = (parsed.get("field") or "").strip().lower()
+                val = parsed.get("value")
+                if val is not None:
+                    val = str(val).strip()
+
+                current_phone = sender_info.get("phone", "")
+                nick = sender_info.get("nickname") or (sender_info.get("name") or "User").split()[0]
+
+                # Jika field belum jelas atau value masih kosong/null
+                if not field or field not in ("name", "nickname", "phone", "telegram") or not val:
+                    if field == "nickname":
+                        return f"Siap Kak {nick}! Mau ganti nama panggilan jadi siapa nih? Cukup sebutkan nama panggilan barunya ya 😊"
+                    elif field == "name":
+                        return f"Siap Kak {nick}! Mau ganti nama lengkap jadi apa? Sebutkan nama lengkap barumu ya 😊"
+                    elif field == "phone":
+                        return f"Bisa banget Kak {nick}! Mau ganti nomor WhatsApp ke nomor berapa? (Contoh: `08123456789`)"
+                    elif field == "telegram":
+                        return f"Bisa banget Kak {nick}! Mau ganti username Telegram ke apa? (Contoh: `@username`)"
+                    else:
+                        return (
+                            f"Hai Kak {nick}! Roro bisa bantu update data profilmu kok. "
+                            f"Kamu bisa memperbarui:\n"
+                            f"• *Nama Lengkap* (contoh: `ganti nama Muhammad Salman`)\n"
+                            f"• *Nama Panggilan / Nickname* (contoh: `ganti nickname Salman`)\n"
+                            f"• *Nomor WhatsApp* (contoh: `ganti nomor wa 08123456789`)\n"
+                            f"• *Akun Telegram* (contoh: `ganti telegram @username`)\n\n"
+                            f"Mau perbarui data yang mana nih? 😊"
+                        )
+
+                # 1. Update nickname
+                if field == "nickname":
+                    from app.services.contacts import update_contact_profile
+                    updated = await update_contact_profile(current_phone, nickname=val)
+                    new_nick = (updated.get("nickname") if updated else val) or val
+                    return f"✅ Siap! Mulai sekarang Roro panggil kamu dengan nama *{new_nick}* ya. Senang mengobrol dengan Kak {new_nick}! Ada lagi yang bisa Roro bantu?"
+
+                # 2. Update full name
+                if field == "name":
+                    from app.services.contacts import update_contact_profile
+                    updated = await update_contact_profile(current_phone, name=val)
+                    cur_nick = (updated.get("nickname") if updated else sender_info.get("nickname")) or val.split()[0]
+                    return f"✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *{val}*. Senang bisa terus membantu, Kak {cur_nick}!"
+
+                # 3. Update phone atau telegram (butuh konfirmasi YA / BATAL karena menyangkut whitelist login)
+                if field in ("phone", "telegram"):
+                    from app.services.session import session_manager
+                    from app.services.contacts import normalize_phone, find_contact_by_phone
+                    contact = await find_contact_by_phone(current_phone)
+
+                    if field == "phone":
+                        new_phone = normalize_phone(val)
+                        if not new_phone or len(new_phone) < 8:
+                            return f"Nomor WhatsApp *{val}* tidak valid. Pastikan format nomor benar (misal: 08123456789 ya Kak {nick})."
+                        old_val = f"+{current_phone}"
+                        new_val_display = f"+{new_phone}"
+                        label = "Nomor WhatsApp"
+                        pending_new_val = new_phone
+                    else:
+                        clean_tg = val.lstrip("@").strip()
+                        if not clean_tg:
+                            return f"Username Telegram tidak boleh kosong ya Kak {nick}."
+                        old_tg = contact.get("telegram") if contact else None
+                        old_val = f"@{old_tg}" if old_tg else "(Belum diset)"
+                        new_val_display = f"@{clean_tg}"
+                        label = "Akun Telegram"
+                        pending_new_val = clean_tg
+
+                    pending_data = {
+                        "field": field,
+                        "old_value": current_phone if field == "phone" else (contact.get("telegram") if contact else ""),
+                        "new_value": pending_new_val,
+                        "current_phone": current_phone,
+                    }
+                    await session_manager.set_pending_profile_update(current_phone, pending_data, ttl_seconds=300)
+
+                    return (
+                        f"⚠️ *Konfirmasi Perubahan {label}*\n\n"
+                        f"Kak {nick}, kamu akan mengubah {label.lower()} dari `{old_val}` menjadi `{new_val_display}`.\n\n"
+                        f"*Peringatan*: Jika diubah, kamu tidak bisa lagi menggunakan nomor/akun saat ini untuk menghubungi Roro "
+                        f"karena akses sistem akan dialihkan ke nomor/akun baru.\n\n"
+                        f"Ketik *YA* atau *KONFIRMASI* untuk melanjutkan, atau *BATAL* untuk membatalkan."
+                    )
+
             if action == "create" and title:
                 # @mention di kalimat natural -> PIC (nickname atau nama, via kontak)
                 pic_id = None

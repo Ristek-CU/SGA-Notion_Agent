@@ -66,6 +66,23 @@ def test_parse_profile_commands():
     assert cmd == "edit_profile_telegram"
     assert args["telegram"] == "msalman"
 
+    # 6. Flexible variations (tolong, bisa, ku)
+    cmd, args = parse_command("tolong ganti nama lengkap saya ke Salman Alfarisi")
+    assert cmd == "edit_profile_name"
+    assert args["name"] == "Salman Alfarisi"
+
+    cmd, args = parse_command("bisa ubah nickname ku jadi Maman")
+    assert cmd == "edit_profile_nickname"
+    assert args["nickname"] == "Maman"
+
+    cmd, args = parse_command("bisa ganti nomor wa ku ke 081299998888")
+    assert cmd == "edit_profile_phone"
+    assert args["phone"] == "081299998888"
+
+    cmd, args = parse_command("tolong update telegram ku jadi @salman_dev")
+    assert cmd == "edit_profile_telegram"
+    assert args["telegram"] == "@salman_dev"
+
 
 @pytest.mark.asyncio
 async def test_immediate_profile_edit_name_and_nickname(tmp_path, monkeypatch):
@@ -262,3 +279,81 @@ async def test_security_confirmation_flow_telegram_and_cancel(tmp_path, monkeypa
     # Pending state di Redis harus bersih
     pending = await session_manager.get_pending_profile_update(curr_phone)
     assert pending is None
+
+
+@pytest.mark.asyncio
+async def test_handle_smart_message_profile_updates(tmp_path, monkeypatch):
+    from app.ai.intent import handle_smart_message
+    from app.services.contacts import find_contact_by_phone, add_or_update_contact
+
+    fake_contacts_file = tmp_path / "contacts.json"
+    fake_contacts_file.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr("app.services.contacts.get_contacts_file_path", lambda: str(fake_contacts_file))
+    import app.services.contacts as c_mod
+    c_mod._contacts_cache = None
+    c_mod._last_mtime = 0.0
+    c_mod._last_file_path = None
+
+    class InMemoryRedis:
+        def __init__(self):
+            self.store = {}
+        async def get(self, k):
+            return self.store.get(k)
+        async def set(self, k, v, ex=None, nx=False):
+            if nx and k in self.store:
+                return False
+            self.store[k] = v
+            return True
+        async def delete(self, k):
+            self.store.pop(k, None)
+
+    fake_redis = InMemoryRedis()
+    monkeypatch.setattr(session_manager, "get_redis", AsyncMock(return_value=fake_redis))
+
+    curr_phone = "628555111222"
+    await add_or_update_contact(
+        name="Salman Alfarisi",
+        phone=curr_phone,
+        nickname="Salman",
+        telegram="salman_tg"
+    )
+
+    sender_info = {
+        "name": "Salman Alfarisi",
+        "nickname": "Salman",
+        "phone": curr_phone,
+        "is_known": True,
+    }
+
+    # 1. Update nickname via conversational intent
+    mock_llm_nick = AsyncMock(return_value='{"action":"update_profile","field":"nickname","value":"Maman","title":null}')
+    with patch("app.ai.intent.create_message", new=mock_llm_nick):
+        reply = await handle_smart_message("tolong dong ganti nickname saya jadi Maman ya", sender_info)
+        assert "✅ Siap! Mulai sekarang Roro panggil kamu dengan nama *Maman*" in reply
+        c = await find_contact_by_phone(curr_phone)
+        assert c["nickname"] == "Maman"
+
+    # 2. Update name via conversational intent
+    mock_llm_name = AsyncMock(return_value='{"action":"update_profile","field":"name","value":"Muhammad Salman Alfarisi","title":null}')
+    with patch("app.ai.intent.create_message", new=mock_llm_name):
+        reply = await handle_smart_message("aku mau ubah nama lengkapku jadi Muhammad Salman Alfarisi", sender_info)
+        assert "✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *Muhammad Salman Alfarisi*" in reply
+        c = await find_contact_by_phone(curr_phone)
+        assert c["name"] == "Muhammad Salman Alfarisi"
+
+    # 3. Update phone via conversational intent -> pending confirmation
+    mock_llm_phone = AsyncMock(return_value='{"action":"update_profile","field":"phone","value":"081299990000","title":null}')
+    with patch("app.ai.intent.create_message", new=mock_llm_phone):
+        reply = await handle_smart_message("bisa tolong ganti nomor wa saya ke 081299990000?", sender_info)
+        assert "⚠️ *Konfirmasi Perubahan Nomor WhatsApp*" in reply
+        assert "+6281299990000" in reply
+        pending = await session_manager.get_pending_profile_update(curr_phone)
+        assert pending is not None
+        assert pending["new_value"] == "6281299990000"
+
+    # 4. User asking general question about profile update (field=null or value=null)
+    mock_llm_general = AsyncMock(return_value='{"action":"update_profile","field":null,"value":null,"title":null}')
+    with patch("app.ai.intent.create_message", new=mock_llm_general):
+        reply = await handle_smart_message("gimana cara ubah profil saya?", sender_info)
+        assert "Hai Kak" in reply
+        assert "Roro bisa bantu update data profilmu kok" in reply
