@@ -15,6 +15,35 @@ client = NotionClient(
 # Status valid di DB Tiket (type: status)
 VALID_STATUSES = ["Not started", "Blocking", "In progress", "Need to review", "Need to fix", "Done"]
 
+# Priority valid di DB Tiket (type: select, property: "Priority Level")
+VALID_PRIORITIES = ["High", "Medium", "Low"]
+
+# Alias input user -> nama priority Notion
+PRIORITY_ALIASES = {
+    "high": "High",
+    "tinggi": "High",
+    "urgent": "High",
+    "penting": "High",
+    "medium": "Medium",
+    "sedang": "Medium",
+    "normal": "Medium",
+    "menengah": "Medium",
+    "low": "Low",
+    "rendah": "Low",
+    "santai": "Low",
+}
+
+
+def normalize_priority(user_prio: str) -> str:
+    key = re.sub(r"[^a-z]", "", (user_prio or "").lower())
+    if key in PRIORITY_ALIASES:
+        return PRIORITY_ALIASES[key]
+    for v in VALID_PRIORITIES:
+        vk = re.sub(r"[^a-z]", "", v.lower())
+        if key and (key in vk or vk in key):
+            return v
+    return ""
+
 # Alias input user -> nama status Notion
 STATUS_ALIASES = {
     "todo": "Not started",
@@ -204,6 +233,14 @@ async def update_ticket_direct(page_id: str, properties: Dict[str, Any]) -> Dict
     res = await client.request("PATCH", f"/pages/{page_id}", body={"properties": properties})
     client.clear_cache()
     return res
+
+
+async def update_ticket_priority(page_id: str, priority: str) -> Dict[str, Any]:
+    """Update priority level tiket di Notion DB."""
+    prio_name = normalize_priority(priority)
+    if not prio_name:
+        raise ValueError(f"Priority '{priority}' tidak valid. Opsi: {', '.join(VALID_PRIORITIES)}")
+    return await update_ticket_direct(page_id, {"Priority Level": {"select": {"name": prio_name}}})
 
 
 async def add_ticket_note(page_id: str, note_text: str) -> Dict[str, Any]:

@@ -15,6 +15,9 @@ COMMAND_PATTERNS = [
     ("edit_profile_nickname", r"^(?:(?:tolong\s+|bisa\s+)?(?:ganti|ubah|update|edit)\s+(?:nickname|nama\s+panggilan|panggilan)(?:\s+saya|\s+ku)?(?:\s+(?:menjadi|jadi|ke|to|=))?|(?:tolong\s+|bisa\s+)?(?:panggil\s+(?:aku|saya)))\s+(.+)$"),
     ("edit_profile_phone", r"^(?:tolong\s+|bisa\s+)?(?:ganti|ubah|update|edit)\s+(?:nomor\s+wa(?:hatsapp)?|no\s+wa(?:hatsapp)?|nomor\s+hp|no\s+hp|nomor|no|wa|whatsapp)(?:\s+saya|\s+ku)?(?:\s+(?:menjadi|jadi|ke|to|=))?\s+(.+)$"),
     ("edit_profile_telegram", r"^(?:tolong\s+|bisa\s+)?(?:ganti|ubah|update|edit)\s+(?:username\s+telegram|akun\s+telegram|telegram|tg)(?:\s+saya|\s+ku)?(?:\s+(?:menjadi|jadi|ke|to|=))?\s+(.+)$"),
+    # priority: "ubah prioritas X jadi High", "ganti priority tiket X ke Low", "set prioritas X jadi High, karena..."
+    ("update_priority", r"^(?:update|ubah|ganti|set)\s+(?:prioritas|priority)\s+(?:tiket|ticket)?\s*(.+?)\s+(?:menjadi|jadi|ke|to|=)\s+([a-zA-Z]+)(?:[,\s]+.*)?$"),
+    ("update_priority_alt", r"^(?:update|ubah|ganti|set)\s+(?:tiket|ticket)\s+(.+?)\s+(?:prioritas|priority)\s*(?:menjadi|jadi|ke|to|=)\s+([a-zA-Z]+)(?:[,\s]+.*)?$"),
     # fleksibel: "update status X ke Done", "update tiket X ke Done", "ubah status X jadi Done", "X dah/udah/dh selesai/kelar/done"
     ("update_status", r"^(?:update|ubah)\s+(?:status|tiket|ticket)?\s*(.+?)\s+(?:menjadi|jadi|ke|to|->)\s+(.+)$"),
     ("update_status_flexible", r"^(.+?)\s+(?:dah|udah|sudah|dh)\s+(?:selesai|kelar|done|beres)\b"),
@@ -40,6 +43,10 @@ def parse_command(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
                 kwargs["title"] = args[2]
             elif cmd_type == "ticket_detail" and len(args) >= 3:
                 kwargs["ticket_id"] = args[2]
+            elif cmd_type in ("update_priority", "update_priority_alt") and len(args) >= 2:
+                kwargs["ticket_id"] = args[0].strip()
+                kwargs["priority"] = args[1].strip()
+                cmd_type = "update_priority"
             elif cmd_type == "update_status":
                 kwargs["ticket_id"] = args[0]
                 kwargs["status"] = args[1]
@@ -177,6 +184,7 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             "- `buat tiket <judul>` : Buat tiket baru\n"
             "- `detail tiket <id>` : Cek detail tiket\n"
             "- `update status <id> <status>` : Ubah status tiket\n"
+            "- `ubah prioritas <id> jadi <High/Medium/Low>` : Ubah prioritas tiket\n"
             "- `assign <id> to <nama>` : Tunjuk PIC tiket\n"
             "- `list divisi` : Lihat daftar divisi\n"
             "- `list anggota` : Daftar anggota tim\n"
@@ -297,6 +305,25 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             )
         except Exception as e:
             return f"⚠️ Gagal ambil detail: {type(e).__name__}"
+
+    if cmd_type == "update_priority":
+        tid, prio = args.get("ticket_id", ""), args.get("priority", "")
+        prio_name = T.normalize_priority(prio)
+        if not prio_name:
+            return f"⚠️ Prioritas \"{prio}\" tidak dikenali — opsi valid: {', '.join(T.VALID_PRIORITIES)}."
+        try:
+            pages = await T.query_tickets_direct()
+            page, ambig = _resolve_ticket(pages, tid, prefer_sender=sender_info)
+            if ambig:
+                opts = "\n".join(f"- {t}" for t in ambig)
+                return f"Ada beberapa tiket mirip *{tid}* nih:\n{opts}\n\nMaksudmu yang mana?"
+            if not page:
+                return f"Tiket *{tid}* tidak ditemukan di backlog. Boleh cek judulnya lagi atau ketik `tiket saya` ya."
+            await T.update_ticket_priority(page["id"], prio_name)
+            e = T._extract(page)
+            return f"✅ Siap! Prioritas tiket *{e['title']}* sudah diupdate jadi *{prio_name}*."
+        except Exception as e:
+            return f"⚠️ Belum berhasil update prioritas ({type(e).__name__}). Opsi prioritas yang valid: {', '.join(T.VALID_PRIORITIES)}."
 
     if cmd_type == "update_status":
         tid, status = args.get("ticket_id", ""), args.get("status", "")

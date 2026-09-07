@@ -24,7 +24,7 @@ export const TicketDetail: React.FC = () => {
     if (!ticket) return;
     const p = ticket.properties ?? {};
     setStatus(p?.Status?.status?.name ?? '');
-    setPriority(p?.Priority?.select?.name ?? '');
+    setPriority((p?.["Priority Level"] || p?.Priority)?.select?.name ?? '');
     setPic(p?.PIC?.relation?.[0]?.id ?? '');
   }, [ticket]);
 
@@ -62,7 +62,7 @@ export const TicketDetail: React.FC = () => {
     ['Ticket ID', props?.ID?.rich_text?.[0]?.plain_text ?? '-'],
     ['Name', name],
     ['Status', props?.Status?.status?.name ?? '-'],
-    ['Priority', props?.Priority?.select?.name ?? '-'],
+    ['Priority', (props?.["Priority Level"] || props?.Priority)?.select?.name ?? '-'],
     ['Division', props?.Division?.select?.name ?? '-'],
     ['Description', props?.Description?.rich_text?.[0]?.plain_text ?? '-'],
     ['Created', ticket.created_time ?? '-'],

@@ -26,7 +26,7 @@ class TicketCreateRequest(BaseModel):
     title: str
     division: Optional[str] = None
     pic_id: Optional[str] = None
-    priority: Optional[str] = "Normal"
+    priority: Optional[str] = "Medium"
     status: Optional[str] = "Backlog"
     description: Optional[str] = None
 
@@ -88,7 +88,7 @@ async def create_ticket(req: TicketCreateRequest, current_user: str = Depends(ve
     res = await create_ticket_direct(
         title=req.title,
         division=req.division,
-        priority=req.priority or "Normal",
+        priority=req.priority or "Medium",
         status=req.status or "Backlog",
         description=req.description,
         pic_id=req.pic_id,
@@ -127,7 +127,7 @@ async def get_ticket(page_id: str, current_user: str = Depends(verify_token)):
         "ticket_id": _plain(props.get("ID", {}).get("rich_text")),
         "title": _plain(props.get("Name", {}).get("title")),
         "status": (props.get("Status", {}).get("status") or {}).get("name"),
-        "priority": (props.get("Priority", {}).get("select") or {}).get("name"),
+        "priority": ((props.get("Priority Level") or props.get("Priority") or {}).get("select") or {}).get("name"),
         "division": (props.get("Division", {}).get("select") or {}).get("name"),
         "pic": (
             [{"id": p.get("id"), "name": p.get("name")} for p in people]
@@ -154,7 +154,7 @@ async def update_ticket(page_id: str, req: TicketUpdateRequest, current_user: st
     if req.status:
         properties["Status"] = {"status": {"name": req.status}}
     if req.priority:
-        properties["Priority"] = {"select": {"name": req.priority}}
+        properties["Priority Level"] = {"select": {"name": req.priority}}
     if req.division:
         properties["Division"] = {"select": {"name": req.division}}
     if req.pic_id:

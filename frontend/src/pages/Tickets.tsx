@@ -18,7 +18,7 @@ export const Tickets: React.FC = () => {
     id: t?.id || '',
     name: t?.properties?.Name?.title?.[0]?.plain_text ?? t?.properties?.Name?.title?.[0]?.text?.content ?? t?.id,
     status: t?.properties?.Status?.status?.name ?? '-',
-    priority: t?.properties?.Priority?.select?.name ?? '-',
+    priority: (t?.properties?.["Priority Level"] || t?.properties?.Priority)?.select?.name ?? '-',
     division: t?.properties?.Division?.select?.name ?? '-',
   }));
 

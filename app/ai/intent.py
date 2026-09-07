@@ -152,6 +152,33 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                 parts.append(f"Cek: `detail tiket {T.ticket_code(page['id'])}`")
                 return "\n".join(parts)
 
+            if action == "update_priority" and title:
+                from app.ai.commands import _resolve_ticket
+                pages = await T.query_tickets_direct()
+                page, ambig = _resolve_ticket(pages, title, prefer_sender=sender_info)
+                if ambig:
+                    opts = "\n".join(f"- {t}" for t in ambig)
+                    return f"🤔 Ada beberapa tiket mirip \"{title}\" — maksudmu yang mana?\n{opts}"
+                if not page:
+                    return f"Tiket \"{title}\" tidak ketemu di backlog. Cek judulnya atau kirim `list tiket` ya."
+
+                raw_prio = parsed.get("new_priority") or parsed.get("priority") or ""
+                # Clean extra trailing phrases if any slipped into raw_prio
+                m_word = re.search(r"^[a-zA-Z]+", str(raw_prio).strip())
+                cleaned_word = m_word.group(0) if m_word else str(raw_prio)
+                prio_name = T.normalize_priority(cleaned_word)
+                if not prio_name:
+                    return f"Prioritas untuk \"{title}\" belum jelas mau diubah ke apa. Opsi prioritas yang tersedia: {', '.join(T.VALID_PRIORITIES)} ya."
+
+                await T.update_ticket_priority(page["id"], prio_name)
+                e = T._extract(page)
+                return (
+                    f"✅ Prioritas tiket *{e['title']}* berhasil diubah menjadi *{prio_name}*!\n"
+                    f"• *Judul:* {e['title']}\n"
+                    f"• *Prioritas:* {prio_name}\n"
+                    f"Cek: `detail tiket {T.ticket_code(page['id'])}`"
+                )
+
             if action == "update_profile":
                 field = (parsed.get("field") or "").strip().lower()
                 val = parsed.get("value")
