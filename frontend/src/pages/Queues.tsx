@@ -18,6 +18,8 @@ interface BroadcastJob {
   division: string;
   platform: string;
   delay_seconds: number;
+  file_url?: string | null;
+  file_name?: string | null;
   total: number;
   sent: number;
   failed: number;
@@ -202,6 +204,11 @@ export const Queues: React.FC = () => {
                           <p className="text-xs text-slate-600 mt-1 line-clamp-1">
                             "{job.message}"
                           </p>
+                          {job.file_name && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-[11px] text-indigo-600 font-medium">
+                              📎 {job.file_name}
+                            </span>
+                          )}
                         </div>
 
                         <div>

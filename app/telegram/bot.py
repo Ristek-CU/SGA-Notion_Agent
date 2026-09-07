@@ -54,6 +54,75 @@ async def send_telegram_message(chat_id: Any, text: str) -> dict:
             return await tg_call(token, "sendMessage", {"chat_id": chat_id, "text": text})
 
 
+async def send_telegram_document(
+    chat_id: Any,
+    document_url: str,
+    caption: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    """Kirim dokumen / file via Telegram sendDocument.
+    Mendukung URL publik atau download/stream ke Telegram.
+    """
+    token = await get_platform_token("telegram")
+    if not token:
+        raise RuntimeError("Telegram platform disabled or bot_token not configured")
+
+    caption_html = _wa_md_to_tg_html(caption) if caption else ""
+
+    # Coba kirim via URL langsung terlebih dahulu
+    payload = {
+        "chat_id": chat_id,
+        "document": document_url,
+    }
+    if caption_html:
+        payload["caption"] = caption_html
+        payload["parse_mode"] = "HTML"
+
+    try:
+        return await tg_call(token, "sendDocument", payload)
+    except Exception as e:
+        # Jika gagal kirim via URL langsung (misal Telegram bot server tidak bisa fetch URL atau parse error),
+        # download file secara streaming/buffer dan upload multipart ke Telegram API
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                file_resp = await client.get(document_url)
+                file_resp.raise_for_status()
+                file_bytes = file_resp.content
+
+            upload_filename = filename or document_url.split("/")[-1] or "document"
+            data = {"chat_id": str(chat_id)}
+            if caption:
+                data["caption"] = caption_html or caption
+                if caption_html:
+                    data["parse_mode"] = "HTML"
+
+            files = {"document": (upload_filename, file_bytes)}
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                res = await client.post(
+                    f"{TELEGRAM_API}/bot{token}/sendDocument",
+                    data=data,
+                    files=files,
+                )
+                res_data = res.json()
+                if not res_data.get("ok"):
+                    # Fallback plain caption tanpa HTML parse_mode
+                    if "parse" in res_data.get("description", "").lower() and caption:
+                        data.pop("parse_mode", None)
+                        data["caption"] = caption
+                        res2 = await client.post(
+                            f"{TELEGRAM_API}/bot{token}/sendDocument",
+                            data=data,
+                            files={"document": (upload_filename, file_bytes)},
+                        )
+                        res2_data = res2.json()
+                        if res2_data.get("ok"):
+                            return res2_data.get("result", {})
+                    raise RuntimeError(res_data.get("description", f"Telegram API error {res.status_code}"))
+                return res_data.get("result", {})
+        except Exception as upload_err:
+            raise RuntimeError(f"Gagal kirim dokumen Telegram: {upload_err}")
+
+
 async def send_typing(chat_id: Any):
     """Kirim action 'typing' sekali (berlaku ~5 detik)."""
     try:

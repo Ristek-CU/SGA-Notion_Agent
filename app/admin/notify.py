@@ -1,7 +1,10 @@
 import os
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
+import shutil
+import uuid
+from pathlib import Path
 from app.admin.auth import verify_token
 from app.services.session import session_manager
 from app.services.store import (
@@ -25,6 +28,10 @@ class BroadcastRequest(BaseModel):
     platform: Optional[str] = "all"
     delay_seconds: Optional[float] = 5.0
     recipients: Optional[List[str]] = None  # optional recipients override
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_mimetype: Optional[str] = None
+    file_size: Optional[int] = None
 
 
 class BroadcastCancelRequest(BaseModel):
@@ -36,6 +43,56 @@ class GuardConfigUpdate(BaseModel):
     strict_mode: Optional[bool] = None
 
 
+UPLOAD_DIR = Path("/app/uploads") if os.path.exists("/app") else Path("uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
+
+
+@router.post("/broadcast/upload")
+async def upload_broadcast_attachment(
+    file: UploadFile = File(...),
+    current_user: str = Depends(verify_token),
+):
+    """Upload lampiran file untuk broadcast (PDF, image, doc, dll)."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename missing")
+
+    # Generate safe unique filename
+    ext = Path(file.filename).suffix
+    safe_name = f"{uuid.uuid4().hex[:12]}_{Path(file.filename).name}"
+    target_path = UPLOAD_DIR / safe_name
+
+    file_size = 0
+    try:
+        with target_path.open("wb") as buffer:
+            while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    raise HTTPException(status_code=413, detail="Ukuran file melebihi batas 25MB")
+                buffer.write(chunk)
+    except Exception as e:
+        if target_path.exists():
+            target_path.unlink(missing_ok=True)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Gagal menyimpan file: {e}")
+
+    # Build public URL
+    base_url = settings.backend_public_url.rstrip("/")
+    file_url = f"{base_url}/uploads/{safe_name}"
+
+    return {
+        "data": {
+            "file_url": file_url,
+            "file_name": file.filename,
+            "file_mimetype": file.content_type or "application/octet-stream",
+            "file_size": file_size,
+        },
+        "error": None,
+        "message": "File uploaded successfully",
+    }
+
+
 @router.post("/broadcast")
 async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(verify_token)):
     job = await queue_manager.enqueue_broadcast(
@@ -44,6 +101,10 @@ async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(v
         platform=req.platform or "all",
         delay_seconds=req.delay_seconds if req.delay_seconds is not None else 5.0,
         recipients_override=req.recipients,
+        file_url=req.file_url,
+        file_name=req.file_name,
+        file_mimetype=req.file_mimetype,
+        file_size=req.file_size,
     )
     await record_audit_log(
         current_user,
@@ -53,6 +114,8 @@ async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(v
             "division": req.division,
             "platform": req.platform,
             "total": job["total"],
+            "file_name": req.file_name,
+            "file_url": req.file_url,
         },
     )
     return {

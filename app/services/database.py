@@ -85,10 +85,18 @@ async def init_db_schema():
         failed INT DEFAULT 0,
         pending INT DEFAULT 0,
         delay_seconds DOUBLE PRECISION DEFAULT 5.0,
+        file_url TEXT,
+        file_name VARCHAR(255),
+        file_mimetype VARCHAR(100),
+        file_size INT,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMPTZ
     );
+    ALTER TABLE broadcast_jobs ADD COLUMN IF NOT EXISTS file_url TEXT;
+    ALTER TABLE broadcast_jobs ADD COLUMN IF NOT EXISTS file_name VARCHAR(255);
+    ALTER TABLE broadcast_jobs ADD COLUMN IF NOT EXISTS file_mimetype VARCHAR(100);
+    ALTER TABLE broadcast_jobs ADD COLUMN IF NOT EXISTS file_size INT;
 
     CREATE TABLE IF NOT EXISTS broadcast_recipients (
         id SERIAL PRIMARY KEY,

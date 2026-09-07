@@ -29,9 +29,10 @@ wheels/
 .env.local
 .env.*.local
 
-# Redis / Cache / Logs
+# Redis / Cache / Logs / Uploads
 cache/
 logs/
+uploads/
 
 # Node / Frontend
 node_modules/

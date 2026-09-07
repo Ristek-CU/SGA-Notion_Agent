@@ -13,6 +13,22 @@ from typing import Any, Callable, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def resolve_file_url_for_waha(file_url: str) -> str:
+    """WAHA berjalan di dokploy-network atau host.
+    Jika file_url menggunakan localhost atau roro-api.mannn.app, kita bisa pastikan
+    WAHA yang satu network dokploy-network bisa reach via internal container name atau public URL.
+    Biasanya public URL https://roro-api.mannn.app/uploads/... bisa dijangkau oleh WAHA (karena internet aktif).
+    Jika URL adalah internal container URL atau localhost, kita ubah sesuai kebutuhan.
+    """
+    if not file_url:
+        return file_url
+    # Jika URL relatif (misal /uploads/abc.pdf), tambahkan backend_public_url
+    if file_url.startswith("/"):
+        from app.config import settings
+        return f"{settings.backend_public_url.rstrip('/')}{file_url}"
+    return file_url
+
+
 class QueueManager:
     def __init__(self):
         self.chat_queue: asyncio.Queue = asyncio.Queue()
@@ -136,9 +152,10 @@ class QueueManager:
                         INSERT INTO broadcast_jobs (
                             id, message, division, platform, status,
                             total, sent, failed, pending, delay_seconds,
+                            file_url, file_name, file_mimetype, file_size,
                             created_at, updated_at
                         )
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TO_TIMESTAMP($11), CURRENT_TIMESTAMP)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TO_TIMESTAMP($15), CURRENT_TIMESTAMP)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         job["id"],
@@ -151,6 +168,10 @@ class QueueManager:
                         job.get("failed", 0),
                         job.get("total", 0),
                         float(job.get("delay_seconds", 5.0)),
+                        job.get("file_url"),
+                        job.get("file_name"),
+                        job.get("file_mimetype"),
+                        job.get("file_size"),
                         float(job.get("created_at", time.time())),
                     )
 
@@ -253,6 +274,10 @@ class QueueManager:
         platform: str = "all",
         delay_seconds: float = 5.0,
         recipients_override: Optional[List[str]] = None,
+        file_url: Optional[str] = None,
+        file_name: Optional[str] = None,
+        file_mimetype: Optional[str] = None,
+        file_size: Optional[int] = None,
     ) -> Dict[str, Any]:
         from app.services.contacts import get_all_contacts
 
@@ -402,6 +427,10 @@ class QueueManager:
             "division": division,
             "platform": platform,
             "delay_seconds": float(delay_seconds) if delay_seconds > 0 else 5.0,
+            "file_url": file_url,
+            "file_name": file_name,
+            "file_mimetype": file_mimetype,
+            "file_size": file_size,
             "total": len(targets),
             "sent": 0,
             "failed": 0,
@@ -461,11 +490,14 @@ class QueueManager:
         return cancelled
 
     async def _run_broadcast_job(self, job: Dict[str, Any]):
-        from app.wa.sender import send_direct_message
-        from app.telegram.bot import send_telegram_message
+        from app.wa.sender import send_direct_message, send_whatsapp_file
+        from app.telegram.bot import send_telegram_message, send_telegram_document
 
         targets = job.get("recipients", [])
         delay = job.get("delay_seconds", 5.0)
+        file_url = job.get("file_url")
+        file_name = job.get("file_name")
+        file_mimetype = job.get("file_mimetype")
 
         for target_info in targets:
             if job.get("_cancel_requested"):
@@ -502,9 +534,31 @@ class QueueManager:
                         dest_chat_id = str(target_info["telegram_chat_id"])
                     if not dest_chat_id:
                         raise RuntimeError("telegram_chat_id tidak ditemukan (Pengguna belum pernah klik /start atau mengirim pesan ke bot Telegram)")
-                    await send_telegram_message(dest_chat_id, text_body)
+
+                    if file_url:
+                        # Kirim dokumen via Telegram sendDocument dengan caption
+                        resolved_tg_url = resolve_file_url_for_waha(file_url)
+                        await send_telegram_document(
+                            dest_chat_id,
+                            document_url=resolved_tg_url,
+                            caption=text_body,
+                            filename=file_name,
+                        )
+                    else:
+                        await send_telegram_message(dest_chat_id, text_body)
                 else:
-                    await send_direct_message(target_info["target"], text_body)
+                    if file_url:
+                        # Kirim file via WAHA sendFile dengan caption
+                        resolved_wa_url = resolve_file_url_for_waha(file_url)
+                        await send_whatsapp_file(
+                            number_or_jid=target_info["target"],
+                            file_url=resolved_wa_url,
+                            filename=file_name,
+                            caption=text_body,
+                            mimetype=file_mimetype,
+                        )
+                    else:
+                        await send_direct_message(target_info["target"], text_body)
                 target_info["status"] = "sent"
                 target_info["sent_at"] = time.time()
                 job["sent"] += 1
@@ -571,6 +625,10 @@ class QueueManager:
             "division": job.get("division", "all"),
             "platform": job.get("platform", "all"),
             "delay_seconds": job.get("delay_seconds", 5.0),
+            "file_url": job.get("file_url"),
+            "file_name": job.get("file_name"),
+            "file_mimetype": job.get("file_mimetype"),
+            "file_size": job.get("file_size"),
             "total": job.get("total", 0),
             "sent": job.get("sent", 0),
             "failed": job.get("failed", 0),
@@ -599,6 +657,7 @@ class QueueManager:
                         """
                         SELECT 
                             id, message, division, platform, delay_seconds,
+                            file_url, file_name, file_mimetype, file_size,
                             total, sent, failed, status,
                             EXTRACT(EPOCH FROM created_at) as created_at,
                             EXTRACT(EPOCH FROM completed_at) as completed_at
@@ -650,6 +709,7 @@ class QueueManager:
                     query = f"""
                         SELECT 
                             id, message, division, platform, delay_seconds,
+                            file_url, file_name, file_mimetype, file_size,
                             total, sent, failed, status,
                             EXTRACT(EPOCH FROM created_at) as created_at,
                             EXTRACT(EPOCH FROM completed_at) as completed_at

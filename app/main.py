@@ -1,6 +1,9 @@
 import asyncio
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.webhook.handler import router as webhook_router
 from app.telegram.bot import router as telegram_router
@@ -86,6 +89,11 @@ app = FastAPI(
 app.include_router(webhook_router)
 app.include_router(telegram_router)
 app.include_router(admin_router)
+
+# Mount uploads directory for static file access (broadcast attachments, etc.)
+upload_dir = Path("/app/uploads") if os.path.exists("/app") else Path("uploads")
+upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
 
 @app.get("/health")

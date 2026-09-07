@@ -17,7 +17,12 @@ import {
   Users,
   Search,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Paperclip,
+  FileText,
+  File,
+  X,
+  UploadCloud
 } from 'lucide-react';
 
 interface RecipientItem {
@@ -37,6 +42,10 @@ interface BroadcastJob {
   division: string;
   platform: string;
   delay_seconds: number;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_mimetype?: string | null;
+  file_size?: number | null;
   total: number;
   sent: number;
   failed: number;
@@ -56,6 +65,17 @@ export const Broadcast: React.FC = () => {
   const [platform, setPlatform] = useState('all');
   const [delaySeconds, setDelaySeconds] = useState(5);
   const [recipientsOverride, setRecipientsOverride] = useState('');
+
+  // File Upload State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(false);
+  const [fileMeta, setFileMeta] = useState<{
+    file_url: string;
+    file_name: string;
+    file_mimetype: string;
+    file_size: number;
+  } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // UI State
   const [activeTab, setActiveTab] = useState<'create' | 'status' | 'history'>('create');
@@ -83,8 +103,36 @@ export const Broadcast: React.FC = () => {
 
   // Mutations
   const sendMutation = useMutation({
-    mutationFn: () =>
-      fetchApi<any>('/admin/broadcast', {
+    mutationFn: async () => {
+      let uploadedData = fileMeta;
+
+      // Jika ada file yang dipilih tapi belum diupload
+      if (selectedFile && !uploadedData) {
+        setUploadProgress(true);
+        setUploadError(null);
+        try {
+          const formData = new FormData();
+          formData.append('file', selectedFile);
+          uploadedData = await fetchApi<{
+            file_url: string;
+            file_name: string;
+            file_mimetype: string;
+            file_size: number;
+          }>('/admin/broadcast/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          setFileMeta(uploadedData);
+        } catch (err: any) {
+          setUploadProgress(false);
+          setUploadError(err.message || 'Gagal mengunggah file attachment');
+          throw err;
+        } finally {
+          setUploadProgress(false);
+        }
+      }
+
+      return fetchApi<any>('/admin/broadcast', {
         method: 'POST',
         body: JSON.stringify({
           message,
@@ -97,10 +145,18 @@ export const Broadcast: React.FC = () => {
                 .map((r) => r.trim())
                 .filter(Boolean)
             : undefined,
+          file_url: uploadedData?.file_url,
+          file_name: uploadedData?.file_name,
+          file_mimetype: uploadedData?.file_mimetype,
+          file_size: uploadedData?.file_size,
         }),
-      }),
+      });
+    },
     onSuccess: () => {
       setMessage('');
+      setSelectedFile(null);
+      setFileMeta(null);
+      setUploadError(null);
       queryClient.invalidateQueries({ queryKey: ['broadcast-active'] });
       queryClient.invalidateQueries({ queryKey: ['broadcast-history'] });
       queryClient.invalidateQueries({ queryKey: ['queues-status'] });
@@ -276,6 +332,86 @@ export const Broadcast: React.FC = () => {
                 </div>
               </div>
 
+              {/* Lampiran File Upload */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                    <Paperclip className="w-4 h-4 text-indigo-600" />
+                    Lampiran Dokumen / Gambar (Opsional)
+                  </label>
+                  <span className="text-[11px] text-slate-400">Maks. 25MB (PDF, PNG, JPG, DOCX, ZIP)</span>
+                </div>
+
+                {!selectedFile && !fileMeta ? (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/30 rounded-xl p-5 cursor-pointer transition-all group">
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 25 * 1024 * 1024) {
+                            setUploadError('Ukuran file melebihi batas 25MB');
+                            return;
+                          }
+                          setSelectedFile(file);
+                          setFileMeta(null);
+                          setUploadError(null);
+                        }
+                      }}
+                    />
+                    <UploadCloud className="w-8 h-8 text-slate-400 group-hover:text-indigo-600 group-hover:scale-110 transition-all mb-2" />
+                    <p className="text-xs font-medium text-slate-700 group-hover:text-indigo-700">
+                      Klik atau seret file ke sini untuk melampirkan
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      File akan dikirimkan otomatis bersama caption pesan di WhatsApp dan Telegram
+                    </p>
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-between p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-600/10 text-indigo-600 flex items-center justify-center shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="truncate">
+                        <p className="text-xs font-semibold text-slate-900 truncate">
+                          {selectedFile ? selectedFile.name : fileMeta?.file_name}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {selectedFile
+                            ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`
+                            : fileMeta
+                            ? `${((fileMeta.file_size || 0) / (1024 * 1024)).toFixed(2)} MB`
+                            : ''}
+                          {uploadProgress && ' • Mengunggah...'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setFileMeta(null);
+                        setUploadError(null);
+                      }}
+                      className="p-1 text-slate-400 hover:text-red-600 rounded-md transition-colors cursor-pointer"
+                      title="Hapus lampiran"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {uploadError && (
+                  <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {uploadError}
+                  </p>
+                )}
+              </div>
+
               <div className="pt-2">
                 <button
                   type="button"
@@ -397,6 +533,25 @@ export const Broadcast: React.FC = () => {
                             </span>
                           </div>
                           <p className="text-sm font-medium text-slate-800 mt-1">"{job.message}"</p>
+                          {job.file_url && (
+                            <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-md text-xs font-medium border border-indigo-100">
+                              <Paperclip className="w-3.5 h-3.5" />
+                              <span>{job.file_name || 'Lampiran File'}</span>
+                              {job.file_size && (
+                                <span className="text-slate-400">
+                                  ({(job.file_size / (1024 * 1024)).toFixed(2)} MB)
+                                </span>
+                              )}
+                              <a
+                                href={job.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-indigo-600 hover:text-indigo-800 ml-1 hover:underline inline-flex items-center gap-0.5"
+                              >
+                                Unduh <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -618,6 +773,20 @@ export const Broadcast: React.FC = () => {
                             <p className="truncate text-slate-700" title={job.message}>
                               "{job.message}"
                             </p>
+                            {job.file_url && (
+                              <div className="mt-1 flex items-center gap-1 text-[11px] text-indigo-600">
+                                <Paperclip className="w-3 h-3" />
+                                <a
+                                  href={job.file_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate hover:underline max-w-[160px] inline-block font-medium"
+                                  title={job.file_name || 'Lihat Lampiran'}
+                                >
+                                  {job.file_name || 'Lampiran'}
+                                </a>
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
                             {isCompleted && (
@@ -706,11 +875,34 @@ export const Broadcast: React.FC = () => {
 
             {/* Modal Body Info */}
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
-              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="text-xs font-semibold text-slate-700 mb-1">Pesan Pengumuman:</div>
-                <div className="text-xs text-slate-800 whitespace-pre-wrap font-sans">
-                  {selectedJobForModal.message}
+              <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                <div>
+                  <div className="text-xs font-semibold text-slate-700 mb-1">Pesan Pengumuman:</div>
+                  <div className="text-xs text-slate-800 whitespace-pre-wrap font-sans">
+                    {selectedJobForModal.message}
+                  </div>
                 </div>
+                {selectedJobForModal.file_url && (
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs text-indigo-700 font-medium">
+                      <Paperclip className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>{selectedJobForModal.file_name || 'Lampiran Dokumen'}</span>
+                      {selectedJobForModal.file_size && (
+                        <span className="text-slate-400">
+                          ({(selectedJobForModal.file_size / (1024 * 1024)).toFixed(2)} MB)
+                        </span>
+                      )}
+                    </div>
+                    <a
+                      href={selectedJobForModal.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 underline"
+                    >
+                      Buka File <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Stats Bar */}

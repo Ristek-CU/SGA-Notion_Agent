@@ -182,6 +182,50 @@ async def send_whatsapp_message(
         return resp.json()
 
 
+async def send_whatsapp_file(
+    number_or_jid: str,
+    file_url: str,
+    filename: Optional[str] = None,
+    caption: Optional[str] = None,
+    mimetype: Optional[str] = None,
+    instance: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Kirim file (PDF, gambar, dokumen) via WAHA sendFile."""
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/sendFile"
+
+    recipient = _clean_recipient(number_or_jid)
+    clean_caption = normalize_whatsapp_markdown(caption) if caption else None
+
+    # WAHA RemoteFile schema: { mimetype, filename, url }
+    file_obj: Dict[str, Any] = {
+        "url": file_url,
+        "mimetype": mimetype or "application/octet-stream",
+    }
+    if filename:
+        file_obj["filename"] = filename
+
+    payload: Dict[str, Any] = {
+        "session": target_instance,
+        "chatId": recipient,
+        "file": file_obj,
+    }
+    if clean_caption:
+        payload["caption"] = clean_caption
+
+    headers = {
+        "X-Api-Key": settings.waha_api_key,
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code >= 400:
+            print(f"[WAHA_SEND_FILE_ERROR] status={resp.status_code} body={resp.text} session={target_instance} to={recipient}")
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def reply_to_group(group_jid: str, text: str, quoted_msg_id: Optional[str] = None) -> Dict[str, Any]:
     return await send_whatsapp_message(group_jid, text, quoted_msg_id=quoted_msg_id)
 
