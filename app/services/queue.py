@@ -2,6 +2,7 @@
 
 High Priority: Chat Queue (FIFO, delay 3s between outgoing replies).
 Low Priority: Broadcast Queue (delay 5s between broadcasts, yields to chat).
+Persisted to PostgreSQL with in-memory fallback.
 """
 import asyncio
 import logging
@@ -21,7 +22,6 @@ class QueueManager:
         self._active_chat_lock = asyncio.Lock()
         self._active_chat_count = 0  # in-flight / processing chat items
         self._chat_worker_task: Optional[asyncio.Task] = None
-        self._broadcast_worker_task: Optional[asyncio.Task] = None
         self._running = False
 
     def start(self):
@@ -29,6 +29,24 @@ class QueueManager:
             return
         self._running = True
         self._chat_worker_task = asyncio.create_task(self._chat_worker(), name="chat_queue_worker")
+        asyncio.create_task(self._mark_interrupted_jobs(), name="broadcast_interrupted_cleanup")
+
+    async def _mark_interrupted_jobs(self):
+        """Mark uncompleted running/yielding/waiting jobs as cancelled across restarts."""
+        try:
+            from app.services.database import get_db_pool
+            pool = await get_db_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        UPDATE broadcast_jobs
+                        SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
+                        WHERE status IN ('running', 'yielding', 'waiting')
+                        """
+                    )
+        except Exception as e:
+            logger.warning(f"Error checking interrupted broadcast jobs on startup: {e}")
 
     async def stop(self):
         self._running = False
@@ -102,6 +120,132 @@ class QueueManager:
                 await self._remove_chat_item(item_id)
                 self.chat_queue.task_done()
 
+    # -------------------------------------------------------------------------
+    # DB Sync Helpers for Broadcast
+    # -------------------------------------------------------------------------
+    async def _db_create_broadcast_job(self, job: Dict[str, Any]):
+        try:
+            from app.services.database import get_db_pool
+            pool = await get_db_pool()
+            if not pool:
+                return
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        INSERT INTO broadcast_jobs (
+                            id, message, division, platform, status,
+                            total, sent, failed, pending, delay_seconds,
+                            created_at, updated_at
+                        )
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TO_TIMESTAMP($11), CURRENT_TIMESTAMP)
+                        ON CONFLICT (id) DO NOTHING
+                        """,
+                        job["id"],
+                        job.get("message", ""),
+                        job.get("division", "all"),
+                        job.get("platform", "all"),
+                        job.get("status", "running"),
+                        job.get("total", 0),
+                        job.get("sent", 0),
+                        job.get("failed", 0),
+                        job.get("total", 0),
+                        float(job.get("delay_seconds", 5.0)),
+                        float(job.get("created_at", time.time())),
+                    )
+
+                    recipients = job.get("recipients", [])
+                    if recipients:
+                        rows = [
+                            (
+                                job["id"],
+                                str(r.get("contact_id") or "") if r.get("contact_id") is not None else None,
+                                r.get("name") or "",
+                                r.get("platform") or "",
+                                r.get("target") or "",
+                                r.get("division") or "",
+                                r.get("status") or "pending",
+                                r.get("error"),
+                            )
+                            for r in recipients
+                        ]
+                        await conn.executemany(
+                            """
+                            INSERT INTO broadcast_recipients (
+                                job_id, contact_id, name, platform, target, division, status, error
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                            """,
+                            rows,
+                        )
+        except Exception as e:
+            logger.warning(f"Error inserting broadcast job into DB: {e}")
+
+    async def _db_update_recipient(
+        self,
+        job_id: str,
+        target: str,
+        platform: str,
+        status: str,
+        error: Optional[str] = None,
+        sent_at: Optional[float] = None,
+    ):
+        try:
+            from app.services.database import get_db_pool
+            pool = await get_db_pool()
+            if not pool:
+                return
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE broadcast_recipients
+                    SET status = $1,
+                        error = $2,
+                        sent_at = CASE WHEN $3::float IS NOT NULL THEN TO_TIMESTAMP($3::float) ELSE CURRENT_TIMESTAMP END
+                    WHERE job_id = $4 AND target = $5 AND platform = $6
+                    """,
+                    status,
+                    error,
+                    sent_at,
+                    job_id,
+                    target,
+                    platform,
+                )
+        except Exception as e:
+            logger.warning(f"Error updating broadcast recipient in DB: {e}")
+
+    async def _db_update_job_status(self, job: Dict[str, Any]):
+        try:
+            from app.services.database import get_db_pool
+            pool = await get_db_pool()
+            if not pool:
+                return
+            async with pool.acquire() as conn:
+                comp_ts = job.get("completed_at")
+                await conn.execute(
+                    """
+                    UPDATE broadcast_jobs
+                    SET status = $1,
+                        sent = $2,
+                        failed = $3,
+                        pending = $4,
+                        updated_at = CURRENT_TIMESTAMP,
+                        completed_at = CASE WHEN $5::float IS NOT NULL THEN TO_TIMESTAMP($5::float) ELSE completed_at END
+                    WHERE id = $6
+                    """,
+                    job.get("status", "running"),
+                    job.get("sent", 0),
+                    job.get("failed", 0),
+                    max(0, job.get("total", 0) - job.get("sent", 0) - job.get("failed", 0)),
+                    float(comp_ts) if comp_ts else None,
+                    job["id"],
+                )
+        except Exception as e:
+            logger.warning(f"Error updating broadcast job status in DB: {e}")
+
+    # -------------------------------------------------------------------------
+    # Broadcast Queue Methods
+    # -------------------------------------------------------------------------
     async def enqueue_broadcast(
         self,
         message: str,
@@ -124,7 +268,13 @@ class QueueManager:
                 if not r_clean:
                     continue
                 matched = next(
-                    (c for c in all_contacts if c.get("phone") == r_clean or (c.get("name") or "").lower() == r_clean.lower() or (c.get("nickname") or "").lower() == r_clean.lower()),
+                    (
+                        c
+                        for c in all_contacts
+                        if c.get("phone") == r_clean
+                        or (c.get("name") or "").lower() == r_clean.lower()
+                        or (c.get("nickname") or "").lower() == r_clean.lower()
+                    ),
                     None,
                 )
                 if matched:
@@ -265,19 +415,49 @@ class QueueManager:
 
         self.broadcast_jobs.append(job)
 
+        # Save to database
+        await self._db_create_broadcast_job(job)
+
         if targets:
             asyncio.create_task(self._run_broadcast_job(job))
 
         return self._format_broadcast_job(job)
 
-    def cancel_broadcast(self, job_id: Optional[str] = None) -> bool:
+    async def cancel_broadcast(self, job_id: Optional[str] = None) -> bool:
         cancelled = False
+        target_jobs = []
         for job in self.broadcast_jobs:
             if job["status"] in ("running", "yielding"):
                 if job_id is None or job["id"] == job_id:
                     job["_cancel_requested"] = True
                     job["status"] = "cancelled"
+                    job["completed_at"] = time.time()
                     cancelled = True
+                    target_jobs.append(job)
+
+        for j in target_jobs:
+            await self._db_update_job_status(j)
+
+        if job_id and not cancelled:
+            # Fallback DB update if not in memory
+            try:
+                from app.services.database import get_db_pool
+                pool = await get_db_pool()
+                if pool:
+                    async with pool.acquire() as conn:
+                        res = await conn.execute(
+                            """
+                            UPDATE broadcast_jobs
+                            SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
+                            WHERE id = $1 AND status IN ('running', 'yielding', 'waiting')
+                            """,
+                            job_id,
+                        )
+                        if "UPDATE 1" in res:
+                            cancelled = True
+            except Exception as e:
+                logger.warning(f"Error cancelling broadcast job {job_id} in DB: {e}")
+
         return cancelled
 
     async def _run_broadcast_job(self, job: Dict[str, Any]):
@@ -291,6 +471,7 @@ class QueueManager:
             if job.get("_cancel_requested"):
                 job["status"] = "cancelled"
                 job["completed_at"] = time.time()
+                await self._db_update_job_status(job)
                 break
 
             # Yield to chat queue if any chat is queued or processing
@@ -298,6 +479,7 @@ class QueueManager:
                 if job.get("_cancel_requested"):
                     job["status"] = "cancelled"
                     job["completed_at"] = time.time()
+                    await self._db_update_job_status(job)
                     return
                 job["status"] = "yielding"
                 await asyncio.sleep(0.5)
@@ -326,6 +508,13 @@ class QueueManager:
                 target_info["status"] = "sent"
                 target_info["sent_at"] = time.time()
                 job["sent"] += 1
+                await self._db_update_recipient(
+                    job_id=job["id"],
+                    target=target_info["target"],
+                    platform=target_info["platform"],
+                    status="sent",
+                    sent_at=target_info["sent_at"],
+                )
             except Exception as e:
                 err_msg = str(e)
                 if "chat not found" in err_msg.lower() and target_info.get("platform") == "telegram":
@@ -335,6 +524,17 @@ class QueueManager:
                 target_info["error"] = err_msg
                 target_info["sent_at"] = time.time()
                 job["failed"] += 1
+                await self._db_update_recipient(
+                    job_id=job["id"],
+                    target=target_info["target"],
+                    platform=target_info["platform"],
+                    status="failed",
+                    error=err_msg,
+                    sent_at=target_info["sent_at"],
+                )
+
+            # Update job progress in DB after each recipient
+            await self._db_update_job_status(job)
 
             # Sleep between broadcasts with chat yield check
             elapsed = 0.0
@@ -343,6 +543,7 @@ class QueueManager:
                 if job.get("_cancel_requested"):
                     job["status"] = "cancelled"
                     job["completed_at"] = time.time()
+                    await self._db_update_job_status(job)
                     return
                 if self.has_active_chats():
                     job["status"] = "yielding"
@@ -350,6 +551,7 @@ class QueueManager:
                         if job.get("_cancel_requested"):
                             job["status"] = "cancelled"
                             job["completed_at"] = time.time()
+                            await self._db_update_job_status(job)
                             return
                         await asyncio.sleep(0.5)
                     job["status"] = "running"
@@ -360,6 +562,7 @@ class QueueManager:
             job["status"] = "completed"
             job["completed_at"] = time.time()
         job["current_recipient"] = None
+        await self._db_update_job_status(job)
 
     def _format_broadcast_job(self, job: Dict[str, Any], include_recipients: bool = False) -> Dict[str, Any]:
         res = {
@@ -380,13 +583,120 @@ class QueueManager:
             res["recipients"] = job.get("recipients", [])
         return res
 
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+    async def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        # Check active in-memory list first for live current_recipient / progress
         for j in self.broadcast_jobs:
             if j["id"] == job_id:
                 return self._format_broadcast_job(j, include_recipients=True)
+
+        # Query PostgreSQL
+        try:
+            from app.services.database import get_db_pool
+            pool = await get_db_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    row = await conn.fetchrow(
+                        """
+                        SELECT 
+                            id, message, division, platform, delay_seconds,
+                            total, sent, failed, status,
+                            EXTRACT(EPOCH FROM created_at) as created_at,
+                            EXTRACT(EPOCH FROM completed_at) as completed_at
+                        FROM broadcast_jobs
+                        WHERE id = $1
+                        """,
+                        job_id,
+                    )
+                    if row:
+                        recipients_rows = await conn.fetch(
+                            """
+                            SELECT 
+                                contact_id, name, platform, target, division, status, error,
+                                EXTRACT(EPOCH FROM sent_at) as sent_at
+                            FROM broadcast_recipients
+                            WHERE job_id = $1
+                            ORDER BY id ASC
+                            """,
+                            job_id,
+                        )
+                        job_dict = dict(row)
+                        job_dict["recipients"] = [dict(r) for r in recipients_rows]
+                        return self._format_broadcast_job(job_dict, include_recipients=True)
+        except Exception as e:
+            logger.warning(f"Error fetching job {job_id} from DB: {e}")
+
         return None
 
-    def get_broadcast_jobs(self, status_filter: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_broadcast_jobs(self, status_filter: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+        # Attempt to load from PostgreSQL first
+        try:
+            from app.services.database import get_db_pool
+            pool = await get_db_pool()
+            if pool:
+                async with pool.acquire() as conn:
+                    where_clause = ""
+                    params = []
+                    if status_filter == "active":
+                        where_clause = "WHERE status IN ('running', 'yielding', 'pending', 'waiting')"
+                    elif status_filter == "history":
+                        where_clause = "WHERE status IN ('completed', 'cancelled')"
+                    elif status_filter:
+                        where_clause = "WHERE status = $1"
+                        params.append(status_filter)
+
+                    limit_param = f"${len(params) + 1}"
+                    params.append(limit)
+
+                    query = f"""
+                        SELECT 
+                            id, message, division, platform, delay_seconds,
+                            total, sent, failed, status,
+                            EXTRACT(EPOCH FROM created_at) as created_at,
+                            EXTRACT(EPOCH FROM completed_at) as completed_at
+                        FROM broadcast_jobs
+                        {where_clause}
+                        ORDER BY created_at DESC
+                        LIMIT {limit_param}
+                    """
+                    rows = await conn.fetch(query, *params)
+                    if rows:
+                        job_ids = [r["id"] for r in rows]
+                        rec_rows = await conn.fetch(
+                            """
+                            SELECT 
+                                job_id, contact_id, name, platform, target, division, status, error,
+                                EXTRACT(EPOCH FROM sent_at) as sent_at
+                            FROM broadcast_recipients
+                            WHERE job_id = ANY($1::varchar[])
+                            ORDER BY id ASC
+                            """,
+                            job_ids,
+                        )
+                        recs_by_job: Dict[str, List[Dict[str, Any]]] = {}
+                        for rr in rec_rows:
+                            recs_by_job.setdefault(rr["job_id"], []).append(dict(rr))
+
+                        # Build job list, overlaying in-memory running stats if active
+                        in_mem_map = {j["id"]: j for j in self.broadcast_jobs}
+                        res_list = []
+                        for r in rows:
+                            j_dict = dict(r)
+                            jid = j_dict["id"]
+                            if jid in in_mem_map and in_mem_map[jid]["status"] in ("running", "yielding", "pending"):
+                                mem_job = in_mem_map[jid]
+                                j_dict["current_recipient"] = mem_job.get("current_recipient")
+                                j_dict["sent"] = mem_job.get("sent", j_dict["sent"])
+                                j_dict["failed"] = mem_job.get("failed", j_dict["failed"])
+                                j_dict["status"] = mem_job.get("status", j_dict["status"])
+                                j_dict["recipients"] = mem_job.get("recipients", recs_by_job.get(jid, []))
+                            else:
+                                j_dict["recipients"] = recs_by_job.get(jid, [])
+                            res_list.append(self._format_broadcast_job(j_dict, include_recipients=True))
+                        return res_list
+        except Exception as e:
+            logger.warning(f"Error fetching broadcast jobs from DB: {e}")
+
+        # Fallback to in-memory list
         jobs = []
         for j in reversed(self.broadcast_jobs):
             st = j.get("status", "")
@@ -398,22 +708,20 @@ class QueueManager:
                     continue
             elif status_filter and st != status_filter:
                 continue
-            # include recipients for detailed view
             jobs.append(self._format_broadcast_job(j, include_recipients=True))
             if len(jobs) >= limit:
                 break
         return jobs
 
-    def get_status(self) -> Dict[str, Any]:
+    async def get_status(self) -> Dict[str, Any]:
+        # Get latest 20 broadcast jobs from get_broadcast_jobs
+        b_jobs = await self.get_broadcast_jobs(limit=20)
         return {
             "chat_queue": {
                 "active_count": len(self.active_chat_items),
                 "items": list(self.active_chat_items),
             },
-            "broadcast_jobs": [
-                self._format_broadcast_job(j)
-                for j in reversed(self.broadcast_jobs[-20:])
-            ],
+            "broadcast_jobs": b_jobs,
         }
 
 

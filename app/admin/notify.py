@@ -65,7 +65,7 @@ async def trigger_broadcast(req: BroadcastRequest, current_user: str = Depends(v
 @router.post("/broadcast/cancel")
 async def cancel_broadcast(req: Optional[BroadcastCancelRequest] = None, current_user: str = Depends(verify_token)):
     target_id = req.job_id if req else None
-    cancelled = queue_manager.cancel_broadcast(target_id)
+    cancelled = await queue_manager.cancel_broadcast(target_id)
     await record_audit_log(current_user, "CANCEL_BROADCAST", {"job_id": target_id, "cancelled": cancelled})
     return {
         "data": {"cancelled": cancelled},
@@ -76,7 +76,7 @@ async def cancel_broadcast(req: Optional[BroadcastCancelRequest] = None, current
 
 @router.get("/broadcast/active")
 async def get_active_broadcast_jobs(current_user: str = Depends(verify_token)):
-    jobs = queue_manager.get_broadcast_jobs(status_filter="active")
+    jobs = await queue_manager.get_broadcast_jobs(status_filter="active")
     return {
         "data": jobs,
         "error": None,
@@ -86,7 +86,7 @@ async def get_active_broadcast_jobs(current_user: str = Depends(verify_token)):
 
 @router.get("/broadcast/history")
 async def get_history_broadcast_jobs(limit: int = 50, current_user: str = Depends(verify_token)):
-    jobs = queue_manager.get_broadcast_jobs(status_filter="history", limit=limit)
+    jobs = await queue_manager.get_broadcast_jobs(status_filter="history", limit=limit)
     return {
         "data": jobs,
         "error": None,
@@ -96,7 +96,7 @@ async def get_history_broadcast_jobs(limit: int = 50, current_user: str = Depend
 
 @router.get("/broadcast/jobs/{job_id}")
 async def get_broadcast_job_detail(job_id: str, current_user: str = Depends(verify_token)):
-    job = queue_manager.get_job(job_id)
+    job = await queue_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Broadcast job not found")
     return {
@@ -109,8 +109,9 @@ async def get_broadcast_job_detail(job_id: str, current_user: str = Depends(veri
 @router.get("/broadcast/queues")
 @router.get("/queues/status")
 async def get_queue_status(current_user: str = Depends(verify_token)):
+    status = await queue_manager.get_status()
     return {
-        "data": queue_manager.get_status(),
+        "data": status,
         "error": None,
         "message": "Queue status fetched",
     }

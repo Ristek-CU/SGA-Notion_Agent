@@ -70,6 +70,39 @@ async def init_db_schema():
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS broadcast_jobs (
+        id VARCHAR(50) PRIMARY KEY,
+        message TEXT NOT NULL,
+        division VARCHAR(100),
+        platform VARCHAR(50) DEFAULT 'all',
+        status VARCHAR(50) NOT NULL,
+        total INT DEFAULT 0,
+        sent INT DEFAULT 0,
+        failed INT DEFAULT 0,
+        pending INT DEFAULT 0,
+        delay_seconds DOUBLE PRECISION DEFAULT 5.0,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMPTZ
+    );
+
+    CREATE TABLE IF NOT EXISTS broadcast_recipients (
+        id SERIAL PRIMARY KEY,
+        job_id VARCHAR(50) REFERENCES broadcast_jobs(id) ON DELETE CASCADE,
+        contact_id VARCHAR(100),
+        name VARCHAR(255),
+        platform VARCHAR(50),
+        target VARCHAR(100),
+        division VARCHAR(100),
+        status VARCHAR(50) NOT NULL,
+        error TEXT,
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_job_id ON broadcast_recipients (job_id);
+    CREATE INDEX IF NOT EXISTS idx_broadcast_jobs_created_at ON broadcast_jobs (created_at DESC);
     """
     async with _pool.acquire() as conn:
         await conn.execute(schema_sql)

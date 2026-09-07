@@ -120,7 +120,7 @@ async def test_broadcast_recipient_status_tracking():
         # Let worker finish sending both
         await asyncio.sleep(0.3)
 
-        updated_job = qm.get_job(job["id"])
+        updated_job = await qm.get_job(job["id"])
         assert updated_job is not None
         assert updated_job["status"] == "completed"
         assert updated_job["sent"] == 1
@@ -170,7 +170,7 @@ async def test_telegram_broadcast_chat_id_lookup():
         assert job["total"] == 2
         await asyncio.sleep(0.3)
 
-        updated_job = qm.get_job(job["id"])
+        updated_job = await qm.get_job(job["id"])
         assert updated_job is not None
         assert updated_job["status"] == "completed"
         assert updated_job["sent"] == 1
