@@ -2,6 +2,7 @@ import os
 import json
 import re
 import logging
+import asyncio
 from typing import Optional, Dict, Any, List
 from app.config import settings
 
@@ -93,7 +94,7 @@ async def get_all_contacts() -> List[Dict[str, Any]]:
         if pool:
             async with pool.acquire() as conn:
                 rows = await conn.fetch(
-                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases FROM contacts ORDER BY name ASC"
+                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id FROM contacts ORDER BY name ASC"
                 )
                 return [dict(r) for r in rows]
     except Exception as e:
@@ -129,7 +130,7 @@ async def find_contact_by_telegram(username: str) -> Optional[Dict[str, Any]]:
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id
                     FROM contacts
                     WHERE LOWER(TRIM(LEADING '@' FROM telegram)) = $1
                     LIMIT 1
@@ -163,7 +164,7 @@ async def find_contact_by_telegram_chat_id(chat_id: str | int) -> Optional[Dict[
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id
                     FROM contacts
                     WHERE telegram_chat_id = $1
                     LIMIT 1
@@ -195,7 +196,7 @@ async def find_contact_by_phone(phone: str) -> Optional[Dict[str, Any]]:
         if pool:
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
-                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases FROM contacts WHERE phone = $1 LIMIT 1",
+                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id FROM contacts WHERE phone = $1 LIMIT 1",
                     norm
                 )
                 if row:
@@ -221,7 +222,7 @@ async def find_contact_by_push_name(push_name: str) -> Optional[Dict[str, Any]]:
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id
                     FROM contacts
                     WHERE LOWER(name) = $1
                        OR LOWER(nickname) = $1
@@ -334,7 +335,7 @@ async def update_contact_profile(
             async with pool.acquire() as conn:
                 # Ambil data lama dulu
                 old_row = await conn.fetchrow(
-                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases FROM contacts WHERE phone = $1 LIMIT 1",
+                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id FROM contacts WHERE phone = $1 LIMIT 1",
                     norm_current
                 )
                 if not old_row:
@@ -360,7 +361,7 @@ async def update_contact_profile(
                         aliases = $5,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE phone = $6
-                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id
                     """,
                     updated_name, updated_nick, updated_phone, updated_tg, aliases, norm_current
                 )
@@ -369,6 +370,13 @@ async def update_contact_profile(
                     _update_contact_in_file(norm_current, res)
                     from app.services.identity import clear_identity_cache
                     clear_identity_cache()
+                    # Two-way sync ke Notion Member jika notion_member_id tersedia
+                    if res.get("notion_member_id") and norm_new_phone and norm_new_phone != norm_current:
+                        try:
+                            from app.services.notion_sync import update_notion_member_phone
+                            asyncio.create_task(update_notion_member_phone(res["notion_member_id"], norm_new_phone))
+                        except Exception as e:
+                            logger.warning(f"Error triggering two-way sync to Notion: {e}")
                     return res
     except Exception as e:
         logger.warning(f"DB update_contact_profile error: {e}")
@@ -464,6 +472,7 @@ async def add_or_update_contact(
     nickname: Optional[str] = None,
     telegram: Optional[str] = None,
     telegram_chat_id: Optional[str] = None,
+    notion_member_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     norm_phone = normalize_phone(phone)
     t = telegram.strip().lstrip("@").lower() if telegram else None
@@ -480,19 +489,20 @@ async def add_or_update_contact(
             async with pool.acquire() as conn:
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO contacts (name, nickname, phone, telegram, telegram_chat_id, division, role, aliases)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    INSERT INTO contacts (name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                     ON CONFLICT (phone) DO UPDATE SET
                         name = COALESCE($1, contacts.name),
                         nickname = COALESCE($2, contacts.nickname),
-                        telegram = $4,
+                        telegram = COALESCE($4, contacts.telegram),
                         telegram_chat_id = COALESCE($5, contacts.telegram_chat_id),
                         division = COALESCE($6, contacts.division),
                         role = COALESCE($7, contacts.role),
+                        notion_member_id = COALESCE($9, contacts.notion_member_id),
                         updated_at = CURRENT_TIMESTAMP
-                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id
                     """,
-                    fmt_name or norm_phone, fmt_nick, norm_phone, t, t_cid, division, role, [fmt_nick.lower()] if fmt_nick else []
+                    fmt_name or norm_phone, fmt_nick, norm_phone, t, t_cid, division, role, [fmt_nick.lower()] if fmt_nick else [], notion_member_id
                 )
                 res = dict(row)
                 # Keep file in sync as backup
@@ -504,7 +514,7 @@ async def add_or_update_contact(
         logger.warning(f"DB add_or_update_contact error: {e}")
 
     # Fallback to file-based
-    res = _add_or_update_contact_file(name, norm_phone, role, division, nickname, telegram, telegram_chat_id=t_cid)
+    res = _add_or_update_contact_file(name, norm_phone, role, division, nickname, telegram, telegram_chat_id=t_cid, notion_member_id=notion_member_id)
     return res
 
 
@@ -533,6 +543,7 @@ def _add_or_update_contact_file(
     nickname: Optional[str] = None,
     telegram: Optional[str] = None,
     telegram_chat_id: Optional[str] = None,
+    notion_member_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     contacts = _load_contacts_from_file()
     norm_phone = normalize_phone(phone)
@@ -549,6 +560,8 @@ def _add_or_update_contact_file(
         new_contact["nickname"] = format_title_case(nickname)
     if telegram_chat_id is not None:
         new_contact["telegram_chat_id"] = str(telegram_chat_id).strip()
+    if notion_member_id is not None:
+        new_contact["notion_member_id"] = notion_member_id
     if telegram is not None:
         t = telegram.strip().lstrip("@").lower()
         if t:

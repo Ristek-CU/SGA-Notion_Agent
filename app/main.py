@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.config import settings
@@ -7,15 +8,40 @@ from app.admin.api import admin_router
 from app.notion.core import NotionClient
 from app.services.session import session_manager
 
+_sync_task: asyncio.Task | None = None
+
+
+async def periodic_member_sync():
+    """Background task untuk auto-sync berkala Notion Members DB ke PostgreSQL contacts setiap 15 menit."""
+    # Delay sebentar saat pertama kali boot agar DB pool & startup selesai
+    await asyncio.sleep(5)
+    while True:
+        try:
+            from app.services.notion_sync import sync_notion_members_to_contacts
+            print("[AUTO-SYNC] Running periodic Notion members sync...")
+            res = await sync_notion_members_to_contacts()
+            print(f"[AUTO-SYNC RESULT] success={res.get('success')} inserted={res.get('inserted')} updated={res.get('updated')}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[AUTO-SYNC ERROR] {e}")
+        
+        # Sleep 15 menit (900 detik)
+        await asyncio.sleep(900)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _sync_task
     # Initialize DB pool and schema at startup
     try:
         from app.services.database import get_db_pool
         await get_db_pool()
     except Exception as e:
         print(f"[STARTUP DB INIT ERROR] {e}")
+
+    # Jalankan initial sync Notion Members di background task saat startup
+    _sync_task = asyncio.create_task(periodic_member_sync())
 
     # Start dual priority queue manager
     from app.services.queue import queue_manager
@@ -45,6 +71,8 @@ async def lifespan(app: FastAPI):
         print(f"[STARTUP WAHA PUT ERROR] {e}")
     yield
     # Cleanup tasks
+    if _sync_task and not _sync_task.done():
+        _sync_task.cancel()
     await session_manager.close()
 
 

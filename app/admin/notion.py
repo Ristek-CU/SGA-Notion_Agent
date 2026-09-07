@@ -218,3 +218,12 @@ async def remove_contact(phone: str, current_user: str = Depends(verify_token)):
     if not deleted:
         raise HTTPException(status_code=404, detail="Contact not found")
     return {"data": {"phone": phone}, "error": None, "message": "Contact deleted"}
+
+
+@router.post("/sync-members")
+async def trigger_sync_members(current_user: str = Depends(verify_token)):
+    from app.services.notion_sync import sync_notion_members_to_contacts
+    res = await sync_notion_members_to_contacts()
+    if not res.get("success"):
+        raise HTTPException(status_code=500, detail=res.get("error", "Sync failed"))
+    return {"data": res, "error": None, "message": "Notion members sync completed"}

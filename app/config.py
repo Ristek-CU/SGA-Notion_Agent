@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     notion_master_backlog_id: Optional[str] = None
     notion_master_projects_id: Optional[str] = None
     notion_divisions_id: Optional[str] = None
-    notion_members_id: Optional[str] = None
+    notion_members_id: Optional[str] = "32f3f1cb-81ff-8175-909e-cb040b90cd30"
+    notion_member_id: Optional[str] = "32f3f1cb-81ff-8175-909e-cb040b90cd30"
     notion_version: str = "2022-06-28"
     waha_api_url: str = "http://orc-waha-0qmqey:3000"
     waha_api_key: str = "waha-notion-agent-2026"

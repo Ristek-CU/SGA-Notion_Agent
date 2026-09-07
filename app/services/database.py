@@ -54,13 +54,16 @@ async def init_db_schema():
         division VARCHAR(100),
         role VARCHAR(100),
         aliases TEXT[] DEFAULT '{}',
+        notion_member_id VARCHAR(100),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_contacts_phone ON contacts (phone);
     CREATE INDEX IF NOT EXISTS idx_contacts_telegram ON contacts (telegram);
     CREATE INDEX IF NOT EXISTS idx_contacts_telegram_chat_id ON contacts (telegram_chat_id);
+    CREATE INDEX IF NOT EXISTS idx_contacts_notion_member_id ON contacts (notion_member_id);
     ALTER TABLE contacts ADD COLUMN IF NOT EXISTS telegram_chat_id VARCHAR(100);
+    ALTER TABLE contacts ADD COLUMN IF NOT EXISTS notion_member_id VARCHAR(100);
 
     CREATE TABLE IF NOT EXISTS platform_configs (
         name VARCHAR(50) PRIMARY KEY,
