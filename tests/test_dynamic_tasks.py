@@ -17,8 +17,8 @@ async def test_identity_resolution_dynamic_wa_and_telegram():
     assert id_yasin_wa["is_known"] is True
     assert id_yasin_wa["nickname"] == "Yaa"
 
-    # 2. Telegram resolution by username
-    id_salman_tg = await resolve_identity_async("unknown_sender", telegram_username="msalman")
+    # 2. Telegram resolution by username (mendukung pangestuu19 atau fallback msalman)
+    id_salman_tg = await resolve_identity_async("unknown_sender", telegram_username="pangestuu19")
     assert id_salman_tg["is_known"] is True
     assert id_salman_tg["nickname"] == "Salman"
     assert id_salman_tg["phone"] == "6285175019086"

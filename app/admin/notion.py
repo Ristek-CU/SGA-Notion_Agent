@@ -58,6 +58,7 @@ class ContactCreateRequest(BaseModel):
 
 
 class ContactUpdateRequest(BaseModel):
+    id: Optional[int] = None
     name: Optional[str] = None
     phone: Optional[str] = None
     nickname: Optional[str] = None
@@ -65,6 +66,7 @@ class ContactUpdateRequest(BaseModel):
     division: Optional[str] = None
     telegram: Optional[str] = None
     telegram_chat_id: Optional[str] = None
+    notion_member_id: Optional[str] = None
 
 
 @router.get("/notion/backlog")
@@ -206,8 +208,32 @@ async def create_contact(req: ContactCreateRequest, current_user: str = Depends(
 
 @router.put("/contacts/{phone}")
 async def update_contact(phone: str, req: ContactUpdateRequest, current_user: str = Depends(verify_token)):
+    from app.services.contacts import update_contact_profile, add_or_update_contact
+    
+    # 1. Jika caller memberikan req.phone yang berbeda dengan path phone, gunakan update_contact_profile
+    # agar record yang sama diperbarui (UPDATE ... WHERE phone = path_phone) dan nomornya diganti,
+    # bukan malah menginsert baris baru.
+    target_new_phone = req.phone if req.phone and req.phone != phone else None
+    
+    # Coba update in-place profil kontak lama
+    updated = await update_contact_profile(
+        current_phone=phone,
+        name=req.name,
+        nickname=req.nickname,
+        new_phone=target_new_phone,
+        telegram=req.telegram,
+        contact_id=req.id,
+        role=req.role,
+        division=req.division,
+        telegram_chat_id=req.telegram_chat_id,
+        notion_member_id=req.notion_member_id,
+    )
+    if updated:
+        return {"data": updated, "error": None, "message": "Contact updated"}
+    
+    # Fallback ke add_or_update_contact
     contact = await add_or_update_contact(
-        req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram, telegram_chat_id=req.telegram_chat_id
+        req.name, req.phone or phone, req.role, req.division, nickname=req.nickname, telegram=req.telegram, telegram_chat_id=req.telegram_chat_id, notion_member_id=req.notion_member_id
     )
     return {"data": contact, "error": None, "message": "Contact updated"}
 

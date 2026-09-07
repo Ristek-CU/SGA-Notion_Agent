@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from '../api/client';
 
 interface Contact {
+  id?: number;
   name: string;
   phone: string;
   telegram?: string;
@@ -10,6 +11,7 @@ interface Contact {
   nickname?: string;
   role?: string;
   division?: string;
+  notion_member_id?: string;
 }
 
 const stripAt = (s: string) => s.trim().replace(/^@+/, '');
@@ -45,7 +47,7 @@ const ROLES = [
 export const Members: React.FC = () => {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
-  const [editingPhone, setEditingPhone] = useState<string | null>(null);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const { data: contacts, isLoading, isError, error } = useQuery({
@@ -81,7 +83,7 @@ export const Members: React.FC = () => {
     onSuccess: invalidate,
   });
 
-  const openAdd = () => { setForm(EMPTY_FORM); setEditingPhone(null); setShowModal(true); };
+  const openAdd = () => { setForm(EMPTY_FORM); setEditingContact(null); setShowModal(true); };
   const openEdit = (c: Contact) => {
     setForm({
       name: c.name || '',
@@ -92,7 +94,7 @@ export const Members: React.FC = () => {
       role: c.role || '',
       division: c.division || '',
     });
-    setEditingPhone(c.phone);
+    setEditingContact(c);
     setShowModal(true);
   };
 
@@ -101,10 +103,12 @@ export const Members: React.FC = () => {
     if (!form.name || !form.phone) return;
     const body = {
       ...form,
+      id: editingContact?.id,
+      notion_member_id: editingContact?.notion_member_id,
       telegram: stripAt(form.telegram),
       telegram_chat_id: form.telegram_chat_id.trim() || undefined,
     };
-    if (editingPhone) updateMut.mutate({ phone: editingPhone, body });
+    if (editingContact) updateMut.mutate({ phone: editingContact.phone, body });
     else createMut.mutate(body);
   };
 
@@ -171,7 +175,7 @@ export const Members: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl"
           >
-            <h2 className="text-lg font-bold text-slate-900">{editingPhone ? 'Edit Member' : 'Tambah Member'}</h2>
+            <h2 className="text-lg font-bold text-slate-900">{editingContact ? 'Edit Member' : 'Tambah Member'}</h2>
             {[
               ['name', 'Nama', true, ''],
               ['nickname', 'Nickname', false, ''],

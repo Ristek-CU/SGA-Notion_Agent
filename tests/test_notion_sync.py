@@ -135,6 +135,50 @@ async def test_update_notion_member_phone():
         assert kwargs["body"]["properties"]["WhatsApp"]["rich_text"][0]["text"]["content"] == "628123456789"
 
 
+@pytest.mark.asyncio
+async def test_sync_notion_members_match_by_name_in_db():
+    mock_pages = [
+        {
+            "id": "notion-salman",
+            "properties": {
+                "Member Name": {"type": "title", "title": [{"plain_text": "Muhammad Salman Firdaus"}]},
+                "WhatsApp": {"type": "rich_text", "rich_text": [{"plain_text": "6285175019086"}]},
+                "Role": {"type": "select", "select": {"name": "Staff"}},
+                "Division": {"type": "relation", "relation": []},
+            }
+        }
+    ]
+
+    mock_conn = AsyncMock()
+    # 1st call by notion_id -> None
+    # 2nd call by phone -> None (misal nomor lama di DB masih beda)
+    # 3rd call by name -> existing row
+    mock_conn.fetchrow.side_effect = [
+        None,
+        None,
+        {"id": 103, "name": "Muhammad Salman Firdaus", "phone": "62851727834", "telegram": "pangestuu19", "telegram_chat_id": "195340229"},
+    ]
+    mock_pool = MagicMock()
+    mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+
+    with patch("app.services.notion_sync.get_division_mapping", new=AsyncMock(return_value={})), \
+         patch("app.notion.core.NotionClient.query_all", new=AsyncMock(return_value=mock_pages)), \
+         patch("app.services.database.get_db_pool", new=AsyncMock(return_value=mock_pool)), \
+         patch("app.services.contacts.get_all_contacts", new=AsyncMock(return_value=[])), \
+         patch("app.services.contacts._save_contacts_to_file"):
+
+        res = await sync_notion_members_to_contacts()
+        assert res["success"] is True
+        assert res["updated"] == 1
+        assert res["inserted"] == 0
+        
+        # Verify UPDATE was called with ID 103 instead of INSERT
+        mock_conn.execute.assert_called_once()
+        exec_args = mock_conn.execute.call_args[0]
+        assert "UPDATE contacts" in exec_args[0]
+        assert exec_args[6] == 103  # existing['id']
+
+
 def test_admin_sync_members_endpoint():
     # Login admin
     login_res = client.post(

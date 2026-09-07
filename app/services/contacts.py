@@ -313,19 +313,25 @@ async def update_contact_profile(
     nickname: Optional[str] = None,
     new_phone: Optional[str] = None,
     telegram: Optional[str] = None,
+    contact_id: Optional[int] = None,
+    role: Optional[str] = None,
+    division: Optional[str] = None,
+    telegram_chat_id: Optional[str] = None,
+    notion_member_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Update profil kontak sendiri berdasarkan nomor telepon saat ini.
-    Mendukung update name, nickname, phone, telegram, updated_at.
+    """Update profil kontak sendiri atau via admin berdasarkan nomor telepon saat ini atau ID.
+    Mendukung update name, nickname, phone, telegram, role, division, telegram_chat_id, notion_member_id.
     Memperbarui PostgreSQL dan contacts.json, lalu membersihkan identity cache.
     """
-    norm_current = normalize_phone(current_phone)
-    if not norm_current:
+    norm_current = normalize_phone(current_phone) if current_phone else ""
+    if not norm_current and not contact_id:
         return None
 
     norm_new_phone = normalize_phone(new_phone) if new_phone else None
     clean_telegram = telegram.strip().lstrip("@").lower() if telegram is not None else None
     if clean_telegram == "":
         clean_telegram = None
+    t_cid = str(telegram_chat_id).strip() if telegram_chat_id is not None else None
 
     # 1. Update in DB if connected
     try:
@@ -334,17 +340,30 @@ async def update_contact_profile(
         if pool:
             async with pool.acquire() as conn:
                 # Ambil data lama dulu
-                old_row = await conn.fetchrow(
-                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id FROM contacts WHERE phone = $1 LIMIT 1",
-                    norm_current
-                )
+                old_row = None
+                if contact_id:
+                    old_row = await conn.fetchrow(
+                        "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id FROM contacts WHERE id = $1 LIMIT 1",
+                        contact_id
+                    )
+                if not old_row and norm_current:
+                    old_row = await conn.fetchrow(
+                        "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id FROM contacts WHERE phone = $1 LIMIT 1",
+                        norm_current
+                    )
                 if not old_row:
                     return None
 
-                updated_phone = norm_new_phone or norm_current
+                rec_id = old_row["id"]
+                current_db_phone = old_row["phone"]
+                updated_phone = norm_new_phone or current_db_phone
                 updated_name = format_title_case(name) if name is not None else old_row["name"]
                 updated_nick = format_title_case(nickname) if nickname is not None else old_row["nickname"]
                 updated_tg = clean_telegram if telegram is not None else old_row["telegram"]
+                updated_cid = t_cid if telegram_chat_id is not None else old_row["telegram_chat_id"]
+                updated_role = role if role is not None else old_row["role"]
+                updated_div = division if division is not None else old_row["division"]
+                updated_notion_id = notion_member_id if notion_member_id is not None else old_row["notion_member_id"]
                 
                 # Update aliases jika nickname / name berubah
                 aliases = list(old_row["aliases"] or [])
@@ -359,19 +378,23 @@ async def update_contact_profile(
                         phone = $3,
                         telegram = $4,
                         aliases = $5,
+                        telegram_chat_id = $6,
+                        role = $7,
+                        division = $8,
+                        notion_member_id = $9,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE phone = $6
+                    WHERE id = $10
                     RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases, notion_member_id
                     """,
-                    updated_name, updated_nick, updated_phone, updated_tg, aliases, norm_current
+                    updated_name, updated_nick, updated_phone, updated_tg, aliases, updated_cid, updated_role, updated_div, updated_notion_id, rec_id
                 )
                 if row:
                     res = dict(row)
-                    _update_contact_in_file(norm_current, res)
+                    _update_contact_in_file(current_db_phone, res)
                     from app.services.identity import clear_identity_cache
                     clear_identity_cache()
                     # Two-way sync ke Notion Member jika notion_member_id tersedia
-                    if res.get("notion_member_id") and norm_new_phone and norm_new_phone != norm_current:
+                    if res.get("notion_member_id") and norm_new_phone and norm_new_phone != current_db_phone:
                         try:
                             from app.services.notion_sync import update_notion_member_phone
                             asyncio.create_task(update_notion_member_phone(res["notion_member_id"], norm_new_phone))
@@ -382,7 +405,7 @@ async def update_contact_profile(
         logger.warning(f"DB update_contact_profile error: {e}")
 
     # Fallback to file-based
-    res = _update_contact_profile_file(norm_current, name=name, nickname=nickname, new_phone=norm_new_phone, telegram=clean_telegram)
+    res = _update_contact_profile_file(norm_current, name=name, nickname=nickname, new_phone=norm_new_phone, telegram=clean_telegram, role=role, division=division, telegram_chat_id=t_cid, notion_member_id=notion_member_id)
     return res
 
 
@@ -406,6 +429,10 @@ def _update_contact_profile_file(
     nickname: Optional[str] = None,
     new_phone: Optional[str] = None,
     telegram: Optional[str] = None,
+    role: Optional[str] = None,
+    division: Optional[str] = None,
+    telegram_chat_id: Optional[str] = None,
+    notion_member_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     contacts = _load_contacts_from_file()
     norm_old = normalize_phone(old_phone)
@@ -430,6 +457,14 @@ def _update_contact_profile_file(
         target["aliases"] = aliases
     if new_phone:
         target["phone"] = new_phone
+    if role is not None:
+        target["role"] = role
+    if division is not None:
+        target["division"] = division
+    if telegram_chat_id is not None:
+        target["telegram_chat_id"] = str(telegram_chat_id).strip()
+    if notion_member_id is not None:
+        target["notion_member_id"] = notion_member_id
     if telegram is not None:
         if telegram:
             target["telegram"] = telegram

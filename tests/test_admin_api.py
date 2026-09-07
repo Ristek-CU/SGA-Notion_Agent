@@ -86,8 +86,24 @@ def test_admin_contacts_crud():
     assert res_add.status_code == 200
     assert res_add.json()["data"]["name"] == "Test User"
 
+    # Update contact phone number without creating duplicate
+    res_update = client.put(
+        "/admin/contacts/628999000",
+        json={"name": "Test User Renamed", "phone": "628999111", "role": "Tester", "division": "Ristek"},
+        headers=headers,
+    )
+    assert res_update.status_code == 200
+    assert res_update.json()["data"]["name"] == "Test User Renamed"
+    assert res_update.json()["data"]["phone"] == "628999111"
+
+    # Verify old phone is gone and new phone exists
+    contacts_list = client.get("/admin/contacts", headers=headers).json()["data"]
+    phones = [c["phone"] for c in contacts_list]
+    assert "628999111" in phones
+    assert "628999000" not in phones
+
     # Delete contact
-    res_del = client.delete("/admin/contacts/628999000", headers=headers)
+    res_del = client.delete("/admin/contacts/628999111", headers=headers)
     assert res_del.status_code == 200
 
 

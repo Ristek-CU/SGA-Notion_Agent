@@ -136,22 +136,27 @@ async def sync_notion_members_to_contacts() -> Dict[str, Any]:
         if pool:
             try:
                 async with pool.acquire() as conn:
-                    # 1. Cari existing contact berdasarkan notion_member_id ATAU phone
+                    # 1. Cari existing contact berdasarkan notion_member_id ATAU phone ATAU nama lengkap
                     existing = None
                     if p_id:
                         existing = await conn.fetchrow(
-                            "SELECT id, phone, telegram, telegram_chat_id FROM contacts WHERE notion_member_id = $1 LIMIT 1",
+                            "SELECT id, name, phone, telegram, telegram_chat_id FROM contacts WHERE notion_member_id = $1 LIMIT 1",
                             p_id
                         )
                     if not existing and p_phone:
                         existing = await conn.fetchrow(
-                            "SELECT id, phone, telegram, telegram_chat_id FROM contacts WHERE phone = $1 LIMIT 1",
+                            "SELECT id, name, phone, telegram, telegram_chat_id FROM contacts WHERE phone = $1 LIMIT 1",
                             p_phone
+                        )
+                    if not existing and p_name:
+                        existing = await conn.fetchrow(
+                            "SELECT id, name, phone, telegram, telegram_chat_id FROM contacts WHERE LOWER(TRIM(name)) = $1 LIMIT 1",
+                            p_name.strip().lower()
                         )
 
                     if existing:
                         # Update record yang sudah ada tanpa menimpa telegram_chat_id / telegram jika tidak diubah
-                        # Phone gunakan yang terbaru jika ada, jika tidak tetap gunakan phone lama
+                        # Phone gunakan yang terbaru jika ada (dan bukan placeholder), jika tidak tetap gunakan phone lama
                         final_phone = p_phone or existing["phone"]
                         await conn.execute(
                             """
