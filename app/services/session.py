@@ -77,6 +77,39 @@ class SessionManager:
         r = await self.get_redis()
         await r.delete(self._key(phone))
 
+    def _pending_profile_key(self, identifier: str) -> str:
+        return f"pending_profile:{identifier}"
+
+    async def set_pending_profile_update(self, identifier: str, update_data: Dict[str, Any], ttl_seconds: int = 300):
+        """Simpan pending update profil (phone / telegram) dengan TTL (default 5 menit)."""
+        try:
+            r = await self.get_redis()
+            key = self._pending_profile_key(identifier)
+            await r.set(key, json.dumps(update_data), ex=ttl_seconds)
+        except Exception:
+            pass
+
+    async def get_pending_profile_update(self, identifier: str) -> Optional[Dict[str, Any]]:
+        """Ambil pending update profil jika ada."""
+        try:
+            r = await self.get_redis()
+            key = self._pending_profile_key(identifier)
+            raw = await r.get(key)
+            if not raw:
+                return None
+            return json.loads(raw)
+        except Exception:
+            return None
+
+    async def clear_pending_profile_update(self, identifier: str):
+        """Hapus pending update profil (saat konfirmasi selesai atau dibatalkan)."""
+        try:
+            r = await self.get_redis()
+            key = self._pending_profile_key(identifier)
+            await r.delete(key)
+        except Exception:
+            pass
+
     AI_CONFIG_KEY = "sga:ai:config"
 
     async def get_ai_config(self) -> Dict[str, Any]:

@@ -163,6 +163,56 @@ async def process_incoming_message(data: Dict[str, Any], instance_name: Optional
         # Save user message to session
         await session_manager.save_user_message(sender_info["phone"], text)
 
+        # Check pending profile confirmation (YA / KONFIRMASI / BATAL)
+        current_phone = sender_info.get("phone", "")
+        pending_profile = await session_manager.get_pending_profile_update(current_phone)
+        if pending_profile:
+            norm_input = text.strip().lower()
+            if norm_input in ("ya", "konfirmasi", "yakin", "yes", "ok", "lanjut"):
+                from app.services.contacts import update_contact_profile
+                field = pending_profile.get("field")
+                new_val = pending_profile.get("new_value")
+                old_val = pending_profile.get("old_value")
+                
+                reply_text = "✅ Data profil berhasil diperbarui."
+                if field == "phone" and new_val:
+                    await update_contact_profile(current_phone, new_phone=new_val)
+                    # Update LID cache jika ada mapping lama
+                    if "@lid" in participant or len(raw_sender) > 13:
+                        set_lid_cache(participant, str(new_val))
+                        set_lid_cache(raw_sender, str(new_val))
+                    reply_text = (
+                        f"✅ *Nomor WhatsApp Berhasil Diubah!*\n\n"
+                        f"Nomor WhatsApp kamu telah berhasil diperbarui ke `+{new_val}`.\n"
+                        f"Mulai sekarang, silakan gunakan nomor WhatsApp baru tersebut untuk berinteraksi dengan Roro ya."
+                    )
+                elif new_val:
+                    await update_contact_profile(current_phone, telegram=new_val)
+                    reply_text = (
+                        f"✅ *Akun Telegram Berhasil Diubah!*\n\n"
+                        f"Username Telegram kamu telah berhasil diperbarui ke `@{new_val}`.\n"
+                        f"Akses bot dari akun Telegram baru kamu sudah aktif."
+                    )
+                await session_manager.clear_pending_profile_update(current_phone)
+                await session_manager.save_assistant_response(sender_info["phone"], reply_text)
+                target_jid = sender_info["phone"] if ("@lid" in remote_jid or len(remote_jid.split("@")[0]) > 13) else remote_jid
+                if is_group:
+                    await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
+                else:
+                    await _send(reply_override, target_jid, reply_text, instance_name)
+                return
+
+            elif norm_input in ("batal", "cancel", "tidak", "gak", "nggak", "gamau"):
+                await session_manager.clear_pending_profile_update(current_phone)
+                reply_text = "❌ Perubahan nomor WhatsApp / akun Telegram telah dibatalkan. Data profil kamu tetap aman dan tidak ada yang berubah."
+                await session_manager.save_assistant_response(sender_info["phone"], reply_text)
+                target_jid = sender_info["phone"] if ("@lid" in remote_jid or len(remote_jid.split("@")[0]) > 13) else remote_jid
+                if is_group:
+                    await reply_to_group(remote_jid, reply_text, quoted_msg_id=msg_id)
+                else:
+                    await _send(reply_override, target_jid, reply_text, instance_name)
+                return
+
         # Guard check out-of-scope (hormati toggle persisten di Redis)
         guard_cfg = await get_guard_state()
         guard_res = check_out_of_scope(text)

@@ -201,11 +201,16 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
 
 
 async def handle_chat(message: str, sender_info: Dict[str, Any]) -> str:
-    nickname = sender_info.get("nickname", "User")
+    nickname = sender_info.get("nickname") or (sender_info.get("name") or "User").split()[0]
+    full_name = sender_info.get("name") or nickname
     sys = (
         f"{SYSTEM_PROMPT}\n"
-        f"User bernama {nickname} dari divisi {sender_info.get('division') or 'Umum'} "
-        f"(role: {sender_info.get('role') or 'anggota'})."
+        f"Konteks Pengguna Saat Ini:\n"
+        f"- Nama Lengkap: {full_name}\n"
+        f"- Nama Panggilan / Nickname: {nickname}\n"
+        f"- Divisi: {sender_info.get('division') or 'Umum'}\n"
+        f"- Role: {sender_info.get('role') or 'Anggota'}\n"
+        f"PENTING: Selalu sapa dan panggil pengguna dengan nama panggilan '{nickname}' (misal: 'Halo {nickname}...', 'Hai Kak {nickname}...', dsb) agar terasa akrab, personal, dan hangat."
     )
     # Riwayat percakapan (Redis, TTL 30 menit) supaya jawaban kontekstual
     history: List[Dict[str, str]] = []
@@ -249,8 +254,17 @@ async def handle_chat_with_context(message: str, sender_info: Dict[str, Any]) ->
         ] or []
     except Exception:
         history = []
+    nickname = sender_info.get("nickname") or (sender_info.get("name") or "User").split()[0]
+    full_name = sender_info.get("name") or nickname
     sys = (
-        f"{SYSTEM_PROMPT}\nKamu punya akses data tiket live berikut. "
+        f"{SYSTEM_PROMPT}\n"
+        f"Konteks Pengguna Saat Ini:\n"
+        f"- Nama Lengkap: {full_name}\n"
+        f"- Nama Panggilan / Nickname: {nickname}\n"
+        f"- Divisi: {sender_info.get('division') or 'Umum'}\n"
+        f"- Role: {sender_info.get('role') or 'Anggota'}\n"
+        f"PENTING: Selalu sapa dan panggil pengguna dengan nama panggilan '{nickname}' (misal: 'Halo {nickname}...', 'Hai Kak {nickname}...', dsb) agar terasa akrab, personal, dan hangat.\n\n"
+        f"Kamu punya akses data tiket live berikut. "
         f"Gunakan untuk menjawab pertanyaan soal task/tiket dengan bahasa natural — "
         f"JANGAN suruh user ketik perintah kalau kamu sudah bisa jawab langsung dari data ini."
         f"{task_ctx}"

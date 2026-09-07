@@ -27,26 +27,28 @@ def normalize_phone(phone: str) -> str:
 
 _contacts_cache: Optional[List[Dict[str, Any]]] = None
 _last_mtime: float = 0.0
+_last_file_path: Optional[str] = None
 
 
 def _load_contacts_from_file() -> List[Dict[str, Any]]:
-    global _contacts_cache, _last_mtime
+    global _contacts_cache, _last_mtime, _last_file_path
     file_path = get_contacts_file_path()
     if not os.path.exists(file_path):
         return []
     try:
         mtime = os.path.getmtime(file_path)
-        if _contacts_cache is None or mtime > _last_mtime:
+        if _contacts_cache is None or mtime > _last_mtime or file_path != _last_file_path:
             with open(file_path, "r", encoding="utf-8") as f:
                 _contacts_cache = json.load(f)
             _last_mtime = mtime
+            _last_file_path = file_path
         return _contacts_cache or []
     except Exception:
         return _contacts_cache or []
 
 
 def _save_contacts_to_file(contacts: List[Dict[str, Any]]):
-    global _contacts_cache, _last_mtime
+    global _contacts_cache, _last_mtime, _last_file_path
     file_path = get_contacts_file_path()
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     temp_path = f"{file_path}.tmp"
@@ -55,6 +57,7 @@ def _save_contacts_to_file(contacts: List[Dict[str, Any]]):
     os.replace(temp_path, file_path)
     _contacts_cache = contacts
     _last_mtime = os.path.getmtime(file_path)
+    _last_file_path = file_path
     try:
         from app.services.identity import clear_identity_cache
         clear_identity_cache()
@@ -248,6 +251,155 @@ def get_full_name(identifier: str) -> str:
     if c:
         return c.get("name")
     return identifier
+
+
+async def update_contact_profile(
+    current_phone: str,
+    name: Optional[str] = None,
+    nickname: Optional[str] = None,
+    new_phone: Optional[str] = None,
+    telegram: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """Update profil kontak sendiri berdasarkan nomor telepon saat ini.
+    Mendukung update name, nickname, phone, telegram, updated_at.
+    Memperbarui PostgreSQL dan contacts.json, lalu membersihkan identity cache.
+    """
+    norm_current = normalize_phone(current_phone)
+    if not norm_current:
+        return None
+
+    norm_new_phone = normalize_phone(new_phone) if new_phone else None
+    clean_telegram = telegram.strip().lstrip("@").lower() if telegram is not None else None
+    if clean_telegram == "":
+        clean_telegram = None
+
+    # 1. Update in DB if connected
+    try:
+        from app.services.database import get_db_pool
+        pool = await get_db_pool()
+        if pool:
+            async with pool.acquire() as conn:
+                # Ambil data lama dulu
+                old_row = await conn.fetchrow(
+                    "SELECT id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases FROM contacts WHERE phone = $1 LIMIT 1",
+                    norm_current
+                )
+                if not old_row:
+                    return None
+
+                updated_phone = norm_new_phone or norm_current
+                updated_name = name if name is not None else old_row["name"]
+                updated_nick = nickname if nickname is not None else old_row["nickname"]
+                updated_tg = clean_telegram if telegram is not None else old_row["telegram"]
+                
+                # Update aliases jika nickname / name berubah
+                aliases = list(old_row["aliases"] or [])
+                if updated_nick and updated_nick.lower() not in [a.lower() for a in aliases]:
+                    aliases.append(updated_nick.lower())
+
+                row = await conn.fetchrow(
+                    """
+                    UPDATE contacts
+                    SET name = $1,
+                        nickname = $2,
+                        phone = $3,
+                        telegram = $4,
+                        aliases = $5,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE phone = $6
+                    RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
+                    """,
+                    updated_name, updated_nick, updated_phone, updated_tg, aliases, norm_current
+                )
+                if row:
+                    res = dict(row)
+                    _update_contact_in_file(norm_current, res)
+                    from app.services.identity import clear_identity_cache
+                    clear_identity_cache()
+                    return res
+    except Exception as e:
+        logger.warning(f"DB update_contact_profile error: {e}")
+
+    # Fallback to file-based
+    res = _update_contact_profile_file(norm_current, name=name, nickname=nickname, new_phone=norm_new_phone, telegram=clean_telegram)
+    return res
+
+
+def _update_contact_in_file(old_phone: str, new_dict: Dict[str, Any]):
+    try:
+        file_path = get_contacts_file_path()
+        contacts = _load_contacts_from_file()
+        norm_old = normalize_phone(old_phone)
+        for idx, c in enumerate(contacts):
+            if normalize_phone(c.get("phone", "")) == norm_old:
+                contacts[idx] = new_dict
+                break
+        _save_contacts_to_file(contacts)
+    except Exception:
+        pass
+
+
+def _update_contact_profile_file(
+    old_phone: str,
+    name: Optional[str] = None,
+    nickname: Optional[str] = None,
+    new_phone: Optional[str] = None,
+    telegram: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    contacts = _load_contacts_from_file()
+    norm_old = normalize_phone(old_phone)
+    found_idx = -1
+    for idx, c in enumerate(contacts):
+        if normalize_phone(c.get("phone", "")) == norm_old:
+            found_idx = idx
+            break
+
+    if found_idx == -1:
+        return None
+
+    target = dict(contacts[found_idx])
+    if name is not None:
+        target["name"] = name
+    if nickname is not None:
+        target["nickname"] = nickname
+        aliases = list(target.get("aliases") or [])
+        if nickname.lower() not in [a.lower() for a in aliases]:
+            aliases.append(nickname.lower())
+        target["aliases"] = aliases
+    if new_phone:
+        target["phone"] = new_phone
+    if telegram is not None:
+        if telegram:
+            target["telegram"] = telegram
+        else:
+            target.pop("telegram", None)
+
+    # Re-read contacts fresh from disk to avoid writing stale cache to wrong file
+    fresh_contacts = []
+    file_path = get_contacts_file_path()
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                fresh_contacts = json.load(f)
+        except Exception:
+            fresh_contacts = contacts
+    else:
+        fresh_contacts = contacts
+
+    fresh_idx = -1
+    for idx, c in enumerate(fresh_contacts):
+        if normalize_phone(c.get("phone", "")) == norm_old:
+            fresh_idx = idx
+            break
+    if fresh_idx != -1:
+        fresh_contacts[fresh_idx] = target
+    else:
+        fresh_contacts.append(target)
+
+    _save_contacts_to_file(fresh_contacts)
+    from app.services.identity import clear_identity_cache
+    clear_identity_cache()
+    return target
 
 
 async def add_or_update_contact(

@@ -10,6 +10,11 @@ COMMAND_PATTERNS = [
     ("my_tickets", r"^(tiket|tugas)\s+saya$"),
     ("create_ticket", r"^(buat|create|tambah)\s+(tiket|ticket)\s+(.+)"),
     ("ticket_detail", r"^(detail|cek)\s+(tiket|ticket)\s+(.+)$"),
+    ("my_profile", r"^(?:cek\s+|lihat\s+)?(?:profil|profile|data\s+diri)(?:\s+saya)?$"),
+    ("edit_profile_name", r"^(?:ganti|ubah|update)\s+(?:nama\s+lengkap|nama)(?:\s+saya)?(?:\s+(?:menjadi|jadi|ke|to|=))?\s+(.+)$"),
+    ("edit_profile_nickname", r"^(?:(?:ganti|ubah|update)\s+(?:nickname|nama\s+panggilan|panggilan)(?:\s+saya)?(?:\s+(?:menjadi|jadi|ke|to|=))?|(?:panggil\s+(?:aku|saya)))\s+(.+)$"),
+    ("edit_profile_phone", r"^(?:ganti|ubah|update)\s+(?:nomor\s+wa(?:hatsapp)?|no\s+wa(?:hatsapp)?|nomor\s+hp|no\s+hp|nomor|no|wa|whatsapp)(?:\s+saya)?(?:\s+(?:menjadi|jadi|ke|to|=))?\s+(.+)$"),
+    ("edit_profile_telegram", r"^(?:ganti|ubah|update)\s+(?:username\s+telegram|akun\s+telegram|telegram|tg)(?:\s+saya)?(?:\s+(?:menjadi|jadi|ke|to|=))?\s+(.+)$"),
     # fleksibel: "update status X ke Done", "update tiket X ke Done", "ubah status X jadi Done", "X dah/udah/dh selesai/kelar/done"
     ("update_status", r"^(?:update|ubah)\s+(?:status|tiket|ticket)?\s*(.+?)\s+(?:menjadi|jadi|ke|to|->)\s+(.+)$"),
     ("update_status_flexible", r"^(.+?)\s+(?:dah|udah|sudah|dh)\s+(?:selesai|kelar|done|beres)\b"),
@@ -49,6 +54,14 @@ def parse_command(message: str) -> Optional[Tuple[str, Dict[str, Any]]]:
             elif cmd_type == "assign_pic":
                 kwargs["ticket_id"] = args[1]
                 kwargs["pic_name"] = args[3]
+            elif cmd_type == "edit_profile_name" and len(args) >= 1:
+                kwargs["name"] = args[0].strip()
+            elif cmd_type == "edit_profile_nickname" and len(args) >= 1:
+                kwargs["nickname"] = args[0].strip()
+            elif cmd_type == "edit_profile_phone" and len(args) >= 1:
+                kwargs["phone"] = args[0].strip()
+            elif cmd_type == "edit_profile_telegram" and len(args) >= 1:
+                kwargs["telegram"] = args[0].strip()
             return cmd_type, kwargs
     return None
 
@@ -156,8 +169,9 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
     from app.services.contacts import get_all_contacts
 
     if cmd_type == "help":
+        nick = sender_info.get("nickname") or (sender_info.get("name") or "kak").split()[0]
         return (
-            "📌 *Perintah Notion Agent SGA:*\n"
+            f"📌 *Halo Kak {nick}! Berikut Perintah Notion Agent SGA:*\n"
             "- `list tiket` : Lihat daftar tiket aktif\n"
             "- `tiket saya` : Lihat tiket yang ditugaskan ke kamu\n"
             "- `buat tiket <judul>` : Buat tiket baru\n"
@@ -166,7 +180,12 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             "- `assign <id> to <nama>` : Tunjuk PIC tiket\n"
             "- `list divisi` : Lihat daftar divisi\n"
             "- `list anggota` : Daftar anggota tim\n"
-            "- `stats` : Ringkasan statistik backlog"
+            "- `stats` : Ringkasan statistik backlog\n"
+            "- `profil saya` : Cek data diri kamu\n"
+            "- `ganti nama <nama>` : Update nama lengkap\n"
+            "- `ganti nickname <panggilan>` : Update nama panggilan\n"
+            "- `ganti nomor wa <nomor>` : Update nomor WhatsApp\n"
+            "- `ganti telegram <username>` : Update username Telegram"
         )
 
     if cmd_type == "create_ticket":
@@ -361,5 +380,88 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
             return "\n".join(lines)
         except Exception as e:
             return f"⚠️ Gagal mengambil anggota: {type(e).__name__}"
+
+    if cmd_type == "my_profile":
+        nick = sender_info.get("nickname") or (sender_info.get("name") or "User").split()[0]
+        full_name = sender_info.get("name") or "-"
+        phone = sender_info.get("phone") or "-"
+        # Ambil kontak fresh
+        from app.services.contacts import find_contact_by_phone
+        contact = await find_contact_by_phone(sender_info.get("phone", ""))
+        tg = contact.get("telegram") if contact else sender_info.get("telegram")
+        div = (contact.get("division") if contact else sender_info.get("division")) or "Umum"
+        role = (contact.get("role") if contact else sender_info.get("role")) or "Anggota"
+        tg_display = f"@{tg}" if tg else "Belum diset"
+
+        return (
+            f"👤 *Profil Pengguna - {nick}*\n"
+            f"• *Nama Lengkap:* {full_name}\n"
+            f"• *Nama Panggilan:* {nick}\n"
+            f"• *Nomor WhatsApp:* +{phone}\n"
+            f"• *Akun Telegram:* {tg_display}\n"
+            f"• *Divisi:* {div}\n"
+            f"• *Peran (Role):* {role}\n\n"
+            f"💡 *Tips Edit Data Diri:*\n"
+            f"- Ketik `ganti nama <nama baru>` untuk ubah nama lengkap\n"
+            f"- Ketik `ganti nickname <panggilan baru>` untuk ubah nama panggilan\n"
+            f"- Ketik `ganti nomor wa <nomor baru>` untuk ubah nomor WhatsApp\n"
+            f"- Ketik `ganti telegram <username baru>` untuk ubah username Telegram"
+        )
+
+    if cmd_type in ("edit_profile_name", "edit_profile_nickname"):
+        from app.services.contacts import update_contact_profile
+        new_val = (args.get("name") or args.get("nickname") or "").strip()
+        if not new_val:
+            return "Mohon masukkan nama / nama panggilan yang valid ya."
+        
+        current_phone = sender_info.get("phone", "")
+        if cmd_type == "edit_profile_name":
+            updated = await update_contact_profile(current_phone, name=new_val)
+            nick = (updated.get("nickname") if updated else sender_info.get("nickname")) or new_val.split()[0]
+            return f"✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *{new_val}*. Senang bisa terus membantu, Kak {nick}!"
+        else:
+            updated = await update_contact_profile(current_phone, nickname=new_val)
+            return f"✅ Siap! Mulai sekarang Roro panggil kamu dengan nama *{new_val}* ya. Ada yang bisa Roro bantu lagi hari ini?"
+
+    if cmd_type in ("edit_profile_phone", "edit_profile_telegram"):
+        from app.services.session import session_manager
+        from app.services.contacts import normalize_phone, find_contact_by_phone
+        current_phone = sender_info.get("phone", "")
+        contact = await find_contact_by_phone(current_phone)
+        field = "phone" if cmd_type == "edit_profile_phone" else "telegram"
+        
+        if field == "phone":
+            raw_phone = args.get("phone", "").strip()
+            new_val = normalize_phone(raw_phone)
+            if not new_val or len(new_val) < 8:
+                return f"Nomor WhatsApp *{raw_phone}* tidak valid. Pastikan format nomor benar (misal: 08123456789)."
+            old_val = f"+{current_phone}"
+            new_val_display = f"+{new_val}"
+            label = "Nomor WhatsApp"
+        else:
+            new_val = args.get("telegram", "").strip().lstrip("@")
+            if not new_val:
+                return "Username Telegram tidak boleh kosong."
+            old_tg = contact.get("telegram") if contact else None
+            old_val = f"@{old_tg}" if old_tg else "(Belum diset)"
+            new_val_display = f"@{new_val}"
+            label = "Akun Telegram"
+
+        # Simpan state pending ke Redis TTL 300s (5 menit)
+        pending_data = {
+            "field": field,
+            "old_value": current_phone if field == "phone" else (contact.get("telegram") if contact else ""),
+            "new_value": new_val,
+            "current_phone": current_phone,
+        }
+        await session_manager.set_pending_profile_update(current_phone, pending_data, ttl_seconds=300)
+
+        return (
+            f"⚠️ *Konfirmasi Perubahan {label}*\n\n"
+            f"Kamu akan mengubah {label.lower()} dari `{old_val}` menjadi `{new_val_display}`.\n\n"
+            f"*Peringatan*: Jika diubah, kamu tidak bisa lagi menggunakan nomor/akun saat ini untuk menghubungi Roro "
+            f"karena akses sistem akan dialihkan ke nomor/akun baru.\n\n"
+            f"Ketik *YA* atau *KONFIRMASI* untuk melanjutkan, atau *BATAL* untuk membatalkan."
+        )
 
     return "Perintah tidak dikenali. Ketik `help`."

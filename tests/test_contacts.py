@@ -35,13 +35,19 @@ async def test_telegram_chat_id_persistence():
     assert await get_telegram_chat_id("123456789") == "123456789"
     assert await get_telegram_chat_id(987654321) == "987654321"
 
-    # Update chat ID for a user in contacts.json (e.g. msalman / pangestuu19)
-    res = await update_contact_telegram_chat_id("msalman", "55667788")
-    assert res is not None
-    assert res.get("telegram_chat_id") == "55667788"
+    # Mock contacts list agar tidak memodifikasi file config/contacts.json langsung
+    from unittest.mock import patch, AsyncMock
+    mock_contacts = [
+        {"name": "Muhammad Salman Firdaus", "phone": "6285175019086", "telegram": "msalman"}
+    ]
+    with patch("app.services.contacts._load_contacts_from_file", return_value=mock_contacts), \
+         patch("app.services.contacts._save_contacts_to_file"), \
+         patch("app.services.database.get_db_pool", new=AsyncMock(return_value=None)):
+        res = await update_contact_telegram_chat_id("msalman", "55667788")
+        assert res is not None
+        assert res.get("telegram_chat_id") == "55667788"
 
-    # Lookup by username
-    found = await get_telegram_chat_id("msalman")
-    assert found == "55667788"
-    assert await get_telegram_chat_id("@msalman") == "55667788"
+        found = await get_telegram_chat_id("msalman")
+        assert found == "55667788"
+        assert await get_telegram_chat_id("@msalman") == "55667788"
 
