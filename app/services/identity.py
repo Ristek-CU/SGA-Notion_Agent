@@ -6,6 +6,7 @@ from app.services.contacts import (
     find_contact_by_push_name,
     find_name_by_phone,
     normalize_phone,
+    format_title_case,
     _load_contacts_from_file,
 )
 
@@ -48,9 +49,11 @@ async def resolve_identity_async(raw_identifier: str, push_name: Optional[str] =
         matched_contact = await find_contact_by_push_name(raw_identifier)
 
     if matched_contact:
+        raw_name = matched_contact.get("name")
+        raw_nickname = matched_contact.get("nickname") or raw_name
         result = {
-            "name": matched_contact.get("name"),
-            "nickname": matched_contact.get("nickname") or matched_contact.get("name"),
+            "name": format_title_case(raw_name) if raw_name else None,
+            "nickname": format_title_case(raw_nickname) if raw_nickname else None,
             "phone": matched_contact.get("phone"),
             "division": matched_contact.get("division"),
             "role": matched_contact.get("role"),
@@ -59,9 +62,10 @@ async def resolve_identity_async(raw_identifier: str, push_name: Optional[str] =
     else:
         # Fallback unknown user
         display = push_name or (f"+{phone}" if phone else raw_identifier)
+        display_formatted = format_title_case(display) if (push_name or (display and not display.startswith("+"))) else display
         result = {
-            "name": display,
-            "nickname": display,
+            "name": display_formatted,
+            "nickname": display_formatted,
             "phone": phone or raw_identifier,
             "division": None,
             "role": "User",
@@ -113,9 +117,11 @@ def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, teleg
                 break
 
     if matched_contact:
+        raw_name = matched_contact.get("name")
+        raw_nickname = matched_contact.get("nickname") or raw_name
         result = {
-            "name": matched_contact.get("name"),
-            "nickname": matched_contact.get("nickname") or matched_contact.get("name"),
+            "name": format_title_case(raw_name) if raw_name else None,
+            "nickname": format_title_case(raw_nickname) if raw_nickname else None,
             "phone": matched_contact.get("phone"),
             "division": matched_contact.get("division"),
             "role": matched_contact.get("role"),
@@ -123,9 +129,10 @@ def resolve_identity(raw_identifier: str, push_name: Optional[str] = None, teleg
         }
     else:
         display = push_name or (f"+{phone}" if phone else raw_identifier)
+        display_formatted = format_title_case(display) if (push_name or (display and not display.startswith("+"))) else display
         result = {
-            "name": display,
-            "nickname": display,
+            "name": display_formatted,
+            "nickname": display_formatted,
             "phone": phone or raw_identifier,
             "division": None,
             "role": "User",

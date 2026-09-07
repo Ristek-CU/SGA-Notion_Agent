@@ -42,6 +42,24 @@ async def list_members() -> List[Dict[str, Any]]:
         return []
 
 
+async def get_member_mapping() -> Dict[str, str]:
+    """Kembalikan mapping {member_page_id: member_name} dari DB Member Notion."""
+    try:
+        pages = await list_members()
+        mapping = {}
+        for p in pages:
+            props = p.get("properties", {})
+            for v in props.values():
+                if v.get("type") == "title":
+                    t = v.get("title", [])
+                    if t:
+                        mapping[p["id"]] = t[0].get("plain_text", "").strip()
+                    break
+        return mapping
+    except Exception:
+        return {}
+
+
 async def get_backlog_stats(database_id: Optional[str] = None) -> Dict[str, Any]:
     db_id = database_id or settings.notion_database_id
     try:

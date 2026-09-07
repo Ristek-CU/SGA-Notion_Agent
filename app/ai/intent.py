@@ -19,16 +19,18 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
     """Kumpulkan data tiket live pengirim utk diinjeksi ke konteks LLM."""
     try:
         from app.notion import ticket_service as T
-        from app.services.contacts import get_all_contacts, load_contacts, normalize_phone
+        from app.notion.org_service import list_members
+        from app.services.contacts import get_all_contacts, normalize_phone
 
         pages = await T.query_tickets_direct()
+        sender_phone = normalize_phone(sender_info.get("phone", ""))
         sender_name = (sender_info.get("name") or "").lower()
         sender_nickname = (sender_info.get("nickname") or "").lower()
 
-        # Load contacts & find sender aliases
+        # Load contacts & find sender aliases and member IDs
         contacts = await get_all_contacts()
         sender_contact = next(
-            (c for c in contacts if normalize_phone(c.get("phone", "")) == normalize_phone(sender_info.get("phone", ""))),
+            (c for c in contacts if normalize_phone(c.get("phone", "")) == sender_phone),
             None
         )
         aliases = [sender_name, sender_nickname]
@@ -40,8 +42,28 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
             aliases.extend([a.lower() for a in sender_contact.get("aliases", [])])
         aliases = [a for a in set(aliases) if a]
 
-        # In Notion DB, PIC is a Relation property pointing to Member Pages (ID e.g. 3313f1cb-81ff-8083-bc67-fcf95d8b85ff).
-        # We also check if the sender name/nickname appears in any text or if pic_ids match.
+        # Map member IDs in Notion Member Database to sender
+        mems = await list_members()
+        sender_member_ids = set()
+        member_id_to_name = {}
+        for m in mems:
+            props = m.get("properties", {})
+            name_t = props.get("Member Name", {}).get("title", [])
+            m_name = name_t[0].get("plain_text", "").strip() if name_t else ""
+            phone_rt = props.get("WhatsApp", {}).get("rich_text", [])
+            m_phone = phone_rt[0].get("plain_text", "").strip() if phone_rt else ""
+            mid = m["id"]
+            if m_name:
+                member_id_to_name[mid] = m_name
+
+            # Check phone match
+            if m_phone and sender_phone and normalize_phone(m_phone) == sender_phone:
+                sender_member_ids.add(mid)
+            # Check name match
+            if m_name and m_name.lower() in aliases:
+                sender_member_ids.add(mid)
+
+        # In Notion DB, PIC is a Relation property pointing to Member Pages.
         mine = []
         for p in pages:
             e = T._extract(p)
@@ -52,19 +74,16 @@ async def _gather_task_context(sender_info: Dict[str, Any]) -> str:
             if status == "Done":
                 continue
 
-            is_mine = False
-            pic_ids = e.get("pic_ids", [])
-            pic_str = (e.get("pic") or "").lower()
+            pic_ids = set(e.get("pic_ids", []))
+            pic_names = [member_id_to_name.get(pid, "").lower() for pid in pic_ids]
             
-            # Hanya cocokan jika alias pengirim ada di kolom PIC (bukan di judul)
-            for alias in aliases:
-                if alias and pic_str and (alias in pic_str or pic_str in alias):
-                    is_mine = True
-                    break
-            
-            # Known Salman PIC Relation ID fallback jika member list relation belum terpetakan di API
-            if "3313f1cb-81ff-8083-bc67-fcf95d8b85ff" in pic_ids:
-                is_mine = True
+            is_mine = bool(pic_ids.intersection(sender_member_ids))
+            if not is_mine:
+                # Fallback: check if sender alias matches resolved PIC member names
+                for p_name in pic_names:
+                    if p_name and any(alias in p_name or p_name in alias for alias in aliases):
+                        is_mine = True
+                        break
 
             if is_mine:
                 mine.append(f"• *{title}* (Status: {status}, Prioritas: {e['priority'] or '-'})")
@@ -220,8 +239,9 @@ async def handle_smart_message(message: str, sender_info: Dict[str, Any]) -> str
                 if field == "name":
                     from app.services.contacts import update_contact_profile
                     updated = await update_contact_profile(current_phone, name=val)
-                    cur_nick = (updated.get("nickname") if updated else sender_info.get("nickname")) or val.split()[0]
-                    return f"✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *{val}*. Senang bisa terus membantu, Kak {cur_nick}!"
+                    fmt_name = (updated.get("name") if updated else val) or val
+                    cur_nick = (updated.get("nickname") if updated else sender_info.get("nickname")) or fmt_name.split()[0]
+                    return f"✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *{fmt_name}*. Senang bisa terus membantu, Kak {cur_nick}!"
 
                 # 3. Update phone atau telegram (butuh konfirmasi YA / BATAL karena menyangkut whitelist login)
                 if field in ("phone", "telegram"):

@@ -51,3 +51,13 @@ async def test_telegram_chat_id_persistence():
         assert found == "55667788"
         assert await get_telegram_chat_id("@msalman") == "55667788"
 
+
+def test_format_title_case():
+    from app.services.contacts import format_title_case
+    assert format_title_case("salman") == "Salman"
+    assert format_title_case("muhammad salman firdaus") == "Muhammad Salman Firdaus"
+    assert format_title_case("yaa siin") == "Yaa Siin"
+    assert format_title_case("adib") == "Adib"
+    assert format_title_case("SGA") == "SGA"
+    assert format_title_case("") == ""
+

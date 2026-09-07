@@ -25,6 +25,26 @@ def normalize_phone(phone: str) -> str:
     return cleaned
 
 
+def format_title_case(name: Optional[str]) -> str:
+    """Format nama atau nickname menjadi Title Case kapital di setiap kata (misal: 'Muhammad Salman Firdaus').
+    Menjaga singkatan pendek (<= 3 huruf kapital seperti SGA, BPH) dan mempertahankan camelCase/mixedCase.
+    """
+    if not name:
+        return ""
+    
+    def cap_word(match):
+        w = match.group(0)
+        if w.isupper() and len(w) <= 3:
+            return w
+        # Jika huruf pertama sudah kapital, pertahankan case aslinya (misal KawanBaru)
+        if w[0].isupper():
+            return w
+        # Jika huruf pertama lowercase, buat kapital
+        return w[0].upper() + w[1:]
+    
+    return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", cap_word, str(name).strip())
+
+
 _contacts_cache: Optional[List[Dict[str, Any]]] = None
 _last_mtime: float = 0.0
 _last_file_path: Optional[str] = None
@@ -288,8 +308,8 @@ async def update_contact_profile(
                     return None
 
                 updated_phone = norm_new_phone or norm_current
-                updated_name = name if name is not None else old_row["name"]
-                updated_nick = nickname if nickname is not None else old_row["nickname"]
+                updated_name = format_title_case(name) if name is not None else old_row["name"]
+                updated_nick = format_title_case(nickname) if nickname is not None else old_row["nickname"]
                 updated_tg = clean_telegram if telegram is not None else old_row["telegram"]
                 
                 # Update aliases jika nickname / name berubah
@@ -359,12 +379,13 @@ def _update_contact_profile_file(
 
     target = dict(contacts[found_idx])
     if name is not None:
-        target["name"] = name
+        target["name"] = format_title_case(name)
     if nickname is not None:
-        target["nickname"] = nickname
+        fmt_nick = format_title_case(nickname)
+        target["nickname"] = fmt_nick
         aliases = list(target.get("aliases") or [])
-        if nickname.lower() not in [a.lower() for a in aliases]:
-            aliases.append(nickname.lower())
+        if fmt_nick.lower() not in [a.lower() for a in aliases]:
+            aliases.append(fmt_nick.lower())
         target["aliases"] = aliases
     if new_phone:
         target["phone"] = new_phone
@@ -414,7 +435,9 @@ async def add_or_update_contact(
     norm_phone = normalize_phone(phone)
     t = telegram.strip().lstrip("@").lower() if telegram else None
     t_cid = str(telegram_chat_id).strip() if telegram_chat_id else None
-    nick = nickname if (nickname is not None and nickname != "") else name
+    fmt_name = format_title_case(name) if name else None
+    raw_nick = nickname if (nickname is not None and nickname != "") else name
+    fmt_nick = format_title_case(raw_nick) if raw_nick else None
 
     # 1. Update/insert in DB if connected
     try:
@@ -436,7 +459,7 @@ async def add_or_update_contact(
                         updated_at = CURRENT_TIMESTAMP
                     RETURNING id, name, nickname, phone, telegram, telegram_chat_id, division, role, aliases
                     """,
-                    name or norm_phone, nick, norm_phone, t, t_cid, division, role, [nick.lower()] if nick else []
+                    fmt_name or norm_phone, fmt_nick, norm_phone, t, t_cid, division, role, [fmt_nick.lower()] if fmt_nick else []
                 )
                 res = dict(row)
                 # Keep file in sync as backup
@@ -484,13 +507,13 @@ def _add_or_update_contact_file(
     clear_telegram = False
     new_contact = {"phone": norm_phone}
     if name:
-        new_contact["name"] = name
+        new_contact["name"] = format_title_case(name)
     if role:
         new_contact["role"] = role
     if division:
         new_contact["division"] = division
     if nickname is not None and nickname != "":
-        new_contact["nickname"] = nickname
+        new_contact["nickname"] = format_title_case(nickname)
     if telegram_chat_id is not None:
         new_contact["telegram_chat_id"] = str(telegram_chat_id).strip()
     if telegram is not None:

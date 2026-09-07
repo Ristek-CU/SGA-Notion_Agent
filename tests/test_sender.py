@@ -28,3 +28,12 @@ async def test_resolve_contact_phone_from_waha(monkeypatch):
     phone = await resolve_contact_phone_from_waha("41721513664717@lid")
     assert phone == "6288289048433"
 
+
+def test_normalize_whatsapp_markdown():
+    from app.wa.sender import normalize_whatsapp_markdown
+    assert normalize_whatsapp_markdown("Halo **Kak Salman**!") == "Halo *Kak Salman*!"
+    assert normalize_whatsapp_markdown("Tiket: ***Testing Roro***") == "Tiket: *_Testing Roro_*"
+    assert normalize_whatsapp_markdown("Normal *bold* dan _italic_") == "Normal *bold* dan _italic_"
+    assert normalize_whatsapp_markdown("") == ""
+
+

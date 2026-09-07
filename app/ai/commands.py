@@ -111,11 +111,12 @@ def _resolve_ticket(pages: List[Dict[str, Any]], query: str, prefer_sender: Opti
         
         if score > 0:
             e = T._extract(p)
-            pic_ids = e.get("pic_ids", [])
+            pic_ids = set(e.get("pic_ids", []))
             pic_str = (e.get("pic") or "").lower()
+            sender_member_ids = prefer_sender.get("member_ids", set()) if prefer_sender else set()
             
-            # Check 1: PIC ID '3313f1cb-81ff-8083-bc67-fcf95d8b85ff' atau PIC string cocok dengan sender
-            if "3313f1cb-81ff-8083-bc67-fcf95d8b85ff" in pic_ids or (sender_nickname and pic_str and (sender_nickname in pic_str or pic_str in sender_nickname)):
+            # Check PIC matching with sender's member IDs or nickname in PIC string
+            if (sender_member_ids and pic_ids.intersection(sender_member_ids)) or (sender_nickname and pic_str and (sender_nickname in pic_str or pic_str in sender_nickname)):
                 score += 200  # Give strong priority to sender's own tickets
             matched.append((p, t, score))
 
@@ -444,11 +445,13 @@ async def handle_command(cmd_type: str, args: Dict[str, Any], sender_info: Dict[
         current_phone = sender_info.get("phone", "")
         if cmd_type == "edit_profile_name":
             updated = await update_contact_profile(current_phone, name=new_val)
-            nick = (updated.get("nickname") if updated else sender_info.get("nickname")) or new_val.split()[0]
-            return f"✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *{new_val}*. Senang bisa terus membantu, Kak {nick}!"
+            fmt_name = (updated.get("name") if updated else new_val) or new_val
+            nick = (updated.get("nickname") if updated else sender_info.get("nickname")) or fmt_name.split()[0]
+            return f"✅ Berhasil! Nama lengkapmu sudah diupdate menjadi *{fmt_name}*. Senang bisa terus membantu, Kak {nick}!"
         else:
             updated = await update_contact_profile(current_phone, nickname=new_val)
-            return f"✅ Siap! Mulai sekarang Roro panggil kamu dengan nama *{new_val}* ya. Ada yang bisa Roro bantu lagi hari ini?"
+            fmt_nick = (updated.get("nickname") if updated else new_val) or new_val
+            return f"✅ Siap! Mulai sekarang Roro panggil kamu dengan nama *{fmt_nick}* ya. Ada yang bisa Roro bantu lagi hari ini?"
 
     if cmd_type in ("edit_profile_phone", "edit_profile_telegram"):
         from app.services.session import session_manager

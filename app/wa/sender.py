@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import httpx
 from typing import Optional, Dict, Any
 from app.config import settings
@@ -48,6 +49,25 @@ def set_lid_cache(lid: str, phone: str):
     cache = load_lid_cache()
     cache[lid] = phone
     save_lid_cache()
+
+
+def normalize_whatsapp_markdown(text: str) -> str:
+    """Konversi markdown standar (**bold**, ***bold italic***) ke WhatsApp markdown (*bold*).
+    
+    WhatsApp hanya mendukung:
+    *bold* (single asterisk)
+    _italic_ (underscore)
+    ~strikethrough~ (tilde)
+    ```code block``` (triple backtick)
+    `inline code` (single backtick)
+    """
+    if not text:
+        return ""
+    # Convert ***bold italic*** -> *_bold italic_*
+    text = re.sub(r"\*{3,}([^*\n]+?)\*{3,}", r"*_\1_*", text)
+    # Convert **bold** -> *bold*
+    text = re.sub(r"\*{2}([^*\n]+?)\*{2}", r"*\1*", text)
+    return text
 
 
 def _clean_recipient(number_or_jid: str) -> str:
@@ -141,11 +161,12 @@ async def send_whatsapp_message(
 
     # Clean JID/number format
     recipient = _clean_recipient(number_or_jid)
+    clean_text = normalize_whatsapp_markdown(text)
 
     payload: Dict[str, Any] = {
         "session": target_instance,
         "chatId": recipient,
-        "text": text,
+        "text": clean_text,
     }
 
     if quoted_msg_id:
