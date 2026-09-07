@@ -6,6 +6,7 @@ Persisted to PostgreSQL with in-memory fallback.
 """
 import asyncio
 import logging
+import random
 import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
@@ -494,10 +495,13 @@ class QueueManager:
         from app.telegram.bot import send_telegram_message, send_telegram_document
 
         targets = job.get("recipients", [])
-        delay = job.get("delay_seconds", 5.0)
+        base_delay = job.get("delay_seconds", 5.0)
         file_url = job.get("file_url")
         file_name = job.get("file_name")
         file_mimetype = job.get("file_mimetype")
+
+        consecutive_sent = 0
+        batch_threshold = random.randint(10, 12)
 
         for target_info in targets:
             if job.get("_cancel_requested"):
@@ -587,8 +591,53 @@ class QueueManager:
                     sent_at=target_info["sent_at"],
                 )
 
+            # Track consecutive sent messages for Human Cooling Pause
+            if target_info.get("status") == "sent":
+                consecutive_sent += 1
+            else:
+                consecutive_sent = 0
+
             # Update job progress in DB after each recipient
             await self._db_update_job_status(job)
+
+            # Check if cooling pause is triggered (after 10-12 consecutive sent messages)
+            if consecutive_sent >= batch_threshold:
+                cooling_pause = random.uniform(12.0, 20.0)
+                logger.info(
+                    f"[BROADCAST_QUEUE] Taking human cooling break for {cooling_pause:.1f}s after batch ({consecutive_sent} sent)..."
+                )
+                consecutive_sent = 0
+                batch_threshold = random.randint(10, 12)
+
+                # Execute cooling pause with cancel & chat yield checks
+                c_elapsed = 0.0
+                c_step = 0.5
+                while c_elapsed < cooling_pause:
+                    if job.get("_cancel_requested"):
+                        job["status"] = "cancelled"
+                        job["completed_at"] = time.time()
+                        await self._db_update_job_status(job)
+                        return
+                    if self.has_active_chats():
+                        job["status"] = "yielding"
+                        while self.has_active_chats():
+                            if job.get("_cancel_requested"):
+                                job["status"] = "cancelled"
+                                job["completed_at"] = time.time()
+                                await self._db_update_job_status(job)
+                                return
+                            await asyncio.sleep(0.5)
+                        job["status"] = "running"
+                    await asyncio.sleep(min(c_step, cooling_pause - c_elapsed))
+                    c_elapsed += c_step
+
+            # Anti-Spam Random Jitter: base_delay + uniform(1.5, 4.5)
+            # If base_delay is very small (e.g. tests with < 0.1s), skip or scale down jitter
+            if base_delay > 0.1:
+                jitter = random.uniform(1.5, 4.5)
+                delay = base_delay + jitter
+            else:
+                delay = base_delay
 
             # Sleep between broadcasts with chat yield check
             elapsed = 0.0

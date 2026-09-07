@@ -226,11 +226,76 @@ async def test_dual_priority_queue_yielding():
             preview="Hi bot",
         )
 
-        # Let queue run
-        await asyncio.sleep(3.6)
+        # Let queue run (chat cooldown is 3s)
+        await asyncio.sleep(4.0)
 
         # Verify chat processed and broadcast yielded
         assert "chat_processed" in events
         assert any(e.startswith("send_broadcast") for e in events)
 
     await qm.stop()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_jitter_and_cooling_pause():
+    qm = QueueManager()
+    qm.start()
+
+    sleep_calls = []
+
+    async def mock_asyncio_sleep(duration):
+        sleep_calls.append(duration)
+
+    # 13 contacts to trigger batch cooling pause (threshold is 10-12)
+    mock_contacts = [
+        {"name": f"User {i}", "phone": f"62800{i}", "division": "Tech"}
+        for i in range(13)
+    ]
+
+    with patch("app.services.contacts.get_all_contacts", new=AsyncMock(return_value=mock_contacts)), \
+         patch("app.wa.sender.send_direct_message", new=AsyncMock()), \
+         patch.object(qm, "_db_create_broadcast_job", new=AsyncMock()), \
+         patch.object(qm, "_db_update_recipient", new=AsyncMock()), \
+         patch.object(qm, "_db_update_job_status", new=AsyncMock()), \
+         patch("asyncio.sleep", side_effect=mock_asyncio_sleep), \
+         patch("random.uniform", side_effect=lambda a, b: 2.0 if (a == 1.5 and b == 4.5) else (15.0 if (a == 12.0 and b == 20.0) else (a + b) / 2)), \
+         patch("random.randint", return_value=11):
+
+        job_dict = {
+            "id": "job_jitter_test",
+            "message": "Testing jitter",
+            "division": "Tech",
+            "platform": "wa",
+            "delay_seconds": 5.0,
+            "recipients": [
+                {
+                    "contact_id": str(i),
+                    "name": f"User {i}",
+                    "platform": "wa",
+                    "target": f"62800{i}",
+                    "division": "Tech",
+                    "status": "pending",
+                    "error": None,
+                    "sent_at": None,
+                }
+                for i in range(13)
+            ],
+            "total": 13,
+            "sent": 0,
+            "failed": 0,
+            "status": "waiting",
+        }
+
+        await qm._run_broadcast_job(job_dict)
+
+        assert job_dict["sent"] == 13
+        assert job_dict["status"] == "completed"
+
+        # Check that jitter delay was applied: base_delay 5.0 + jitter 2.0 = 7.0s
+        # Total sleep calls should include 0.5s steps adding up to 7.0s per message, plus cooling pause (15.0s)
+        total_sleep_time = sum(sleep_calls)
+        # 13 items * 7.0s = 91.0s, plus 1 cooling break of 15.0s = 106.0s
+        assert total_sleep_time >= 105.0
+
+    await qm.stop()
+

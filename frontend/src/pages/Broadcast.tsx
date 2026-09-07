@@ -22,7 +22,8 @@ import {
   FileText,
   File,
   X,
-  UploadCloud
+  UploadCloud,
+  ShieldCheck
 } from 'lucide-react';
 
 interface RecipientItem {
@@ -313,6 +314,14 @@ export const Broadcast: React.FC = () => {
                   <p className="text-[11px] text-slate-400 mt-1">
                     Direkomendasikan minimal 5s untuk mencegah anti-spam ban.
                   </p>
+
+                  {/* Anti-Ban Jitter Info Badge */}
+                  <div className="mt-2.5 p-2.5 bg-emerald-50/80 border border-emerald-200/70 rounded-lg flex items-start gap-2 text-emerald-800">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-relaxed">
+                      <span className="font-semibold">🛡️ Anti-Ban Jitter Aktif:</span> Variasi jeda acak (+1.5-4.5s) & jeda istirahat batch berkala aktif otomatis untuk melindungi nomor dari deteksi spam WhatsApp.
+                    </div>
+                  </div>
                 </div>
 
                 <div>
