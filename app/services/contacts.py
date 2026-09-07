@@ -394,12 +394,19 @@ async def update_contact_profile(
                     from app.services.identity import clear_identity_cache
                     clear_identity_cache()
                     # Two-way sync ke Notion Member jika notion_member_id tersedia
-                    if res.get("notion_member_id") and norm_new_phone and norm_new_phone != current_db_phone:
-                        try:
-                            from app.services.notion_sync import update_notion_member_phone
-                            asyncio.create_task(update_notion_member_phone(res["notion_member_id"], norm_new_phone))
-                        except Exception as e:
-                            logger.warning(f"Error triggering two-way sync to Notion: {e}")
+                    if res.get("notion_member_id"):
+                        sync_phone = norm_new_phone if (norm_new_phone and norm_new_phone != current_db_phone) else None
+                        sync_name = updated_name if (name is not None and updated_name != old_row["name"]) else None
+                        if sync_phone or sync_name:
+                            try:
+                                from app.services.notion_sync import update_notion_member_profile
+                                asyncio.create_task(update_notion_member_profile(
+                                    res["notion_member_id"],
+                                    new_phone=sync_phone,
+                                    new_name=sync_name,
+                                ))
+                            except Exception as e:
+                                logger.warning(f"Error triggering two-way sync to Notion: {e}")
                     return res
     except Exception as e:
         logger.warning(f"DB update_contact_profile error: {e}")

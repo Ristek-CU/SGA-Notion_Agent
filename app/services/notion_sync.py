@@ -232,34 +232,54 @@ async def sync_notion_members_to_contacts() -> Dict[str, Any]:
     }
 
 
-async def update_notion_member_phone(page_id: str, new_phone: str) -> bool:
+async def update_notion_member_profile(
+    page_id: str,
+    new_phone: Optional[str] = None,
+    new_name: Optional[str] = None,
+) -> bool:
     """
-    Two-way sync: Perbarui properti 'WhatsApp' di halaman Notion Member terkait.
+    Two-way sync: Perbarui properti 'WhatsApp' dan/atau 'Member Name' di halaman Notion Member terkait.
     """
-    if not page_id or not new_phone:
+    if not page_id or (not new_phone and not new_name):
         return False
 
     client = NotionClient(
         api_key=settings.notion_api_key,
         version=settings.notion_version,
     )
-    norm = normalize_phone(new_phone)
-    payload = {
-        "properties": {
-            "WhatsApp": {
-                "rich_text": [
-                    {
-                        "type": "text",
-                        "text": {"content": norm}
-                    }
-                ]
-            }
+    props = {}
+    if new_name:
+        fmt_name = format_title_case(new_name)
+        props["Member Name"] = {
+            "title": [
+                {
+                    "type": "text",
+                    "text": {"content": fmt_name}
+                }
+            ]
         }
-    }
+    if new_phone:
+        norm = normalize_phone(new_phone)
+        props["WhatsApp"] = {
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {"content": norm}
+                }
+            ]
+        }
+
+    payload = {"properties": props}
     try:
         await client.request("PATCH", f"/pages/{page_id}", body=payload)
-        logger.info(f"Updated Notion member page {page_id} WhatsApp to {norm}")
+        logger.info(f"Updated Notion member page {page_id} profile: name={new_name}, phone={new_phone}")
         return True
     except Exception as e:
-        logger.warning(f"Failed updating WhatsApp on Notion page {page_id}: {e}")
+        logger.warning(f"Failed updating profile on Notion page {page_id}: {e}")
         return False
+
+
+async def update_notion_member_phone(page_id: str, new_phone: str) -> bool:
+    """Backward-compatible wrapper untuk update nomor WhatsApp Notion Member."""
+    return await update_notion_member_profile(page_id, new_phone=new_phone)
+

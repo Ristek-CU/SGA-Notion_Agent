@@ -5,6 +5,7 @@ from app.services.notion_sync import (
     get_division_mapping,
     sync_notion_members_to_contacts,
     update_notion_member_phone,
+    update_notion_member_profile,
 )
 from fastapi.testclient import TestClient
 from app.main import app
@@ -136,6 +137,42 @@ async def test_update_notion_member_phone():
 
 
 @pytest.mark.asyncio
+async def test_update_notion_member_profile_name_and_phone():
+    with patch("app.notion.core.NotionClient.request", new=AsyncMock(return_value={"id": "page-456"})) as mock_req:
+        res = await update_notion_member_profile("page-456", new_phone="08123456789", new_name="budi santoso")
+        assert res is True
+        mock_req.assert_called_once()
+        args, kwargs = mock_req.call_args
+        assert args[0] == "PATCH"
+        assert args[1] == "/pages/page-456"
+        props = kwargs["body"]["properties"]
+        assert props["WhatsApp"]["rich_text"][0]["text"]["content"] == "628123456789"
+        assert props["Member Name"]["title"][0]["text"]["content"] == "Budi Santoso"
+
+
+@pytest.mark.asyncio
+async def test_update_notion_member_profile_name_only():
+    with patch("app.notion.core.NotionClient.request", new=AsyncMock(return_value={"id": "page-789"})) as mock_req:
+        res = await update_notion_member_profile("page-789", new_name="Muhammad Salman")
+        assert res is True
+        mock_req.assert_called_once()
+        args, kwargs = mock_req.call_args
+        props = kwargs["body"]["properties"]
+        assert "Member Name" in props
+        assert props["Member Name"]["title"][0]["text"]["content"] == "Muhammad Salman"
+        assert "WhatsApp" not in props
+
+
+@pytest.mark.asyncio
+async def test_update_notion_member_profile_empty():
+    res = await update_notion_member_profile("page-123")
+    assert res is False
+    res = await update_notion_member_profile("", new_name="Test")
+    assert res is False
+
+
+
+@pytest.mark.asyncio
 async def test_sync_notion_members_match_by_name_in_db():
     mock_pages = [
         {
@@ -195,3 +232,63 @@ def test_admin_sync_members_endpoint():
         assert data["data"]["success"] is True
         assert data["data"]["inserted"] == 1
         assert data["data"]["updated"] == 2
+
+
+@pytest.mark.asyncio
+async def test_update_contact_profile_triggers_notion_sync():
+    from app.services.contacts import update_contact_profile
+    import asyncio
+
+    mock_conn = AsyncMock()
+    mock_conn.fetchrow.side_effect = [
+        # SELECT old_row
+        {
+            "id": 10,
+            "name": "Old Name",
+            "nickname": "Old Nick",
+            "phone": "628111222333",
+            "telegram": "oldtg",
+            "telegram_chat_id": "12345",
+            "division": "Tech",
+            "role": "Staff",
+            "aliases": ["old nick"],
+            "notion_member_id": "page-notion-999",
+        },
+        # UPDATE RETURNING
+        {
+            "id": 10,
+            "name": "New Full Name",
+            "nickname": "Old Nick",
+            "phone": "628999888777",
+            "telegram": "oldtg",
+            "telegram_chat_id": "12345",
+            "division": "Tech",
+            "role": "Staff",
+            "aliases": ["old nick"],
+            "notion_member_id": "page-notion-999",
+        }
+    ]
+    mock_pool = MagicMock()
+    mock_pool.acquire.return_value.__aenter__.return_value = mock_conn
+
+    with patch("app.services.database.get_db_pool", new=AsyncMock(return_value=mock_pool)), \
+         patch("app.services.contacts._update_contact_in_file"), \
+         patch("app.services.notion_sync.update_notion_member_profile", new=AsyncMock(return_value=True)) as mock_sync:
+
+        res = await update_contact_profile(
+            current_phone="628111222333",
+            name="New Full Name",
+            new_phone="08999888777"
+        )
+        assert res is not None
+        assert res["name"] == "New Full Name"
+        assert res["phone"] == "628999888777"
+
+        # Give background asyncio task a chance to run
+        await asyncio.sleep(0.05)
+        mock_sync.assert_called_once_with(
+            "page-notion-999",
+            new_phone="628999888777",
+            new_name="New Full Name"
+        )
+
