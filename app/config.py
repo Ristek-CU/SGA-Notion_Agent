@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     backend_public_url: str = "https://roro-api.mannn.app"
     waha_webhook_url: Optional[str] = "http://sga-notion-agent-selrus:3000/webhook/wa-bot"
 
+    # OTP Auth Settings
+    otp_enabled: bool = True
+    otp_target_wa: str = "6285175019086"
+    otp_target_tg: str = "195340229"
+    otp_ttl_seconds: int = 300
+    otp_max_attempts: int = 5
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

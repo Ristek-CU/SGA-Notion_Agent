@@ -136,7 +136,21 @@ def test_broadcast_upload_api():
         "/admin/login",
         json={"username": settings.admin_user, "password": settings.admin_password},
     )
-    token = res_login.json()["data"]["token"]
+    login_data = res_login.json()
+    if "token" in login_data.get("data", {}):
+        token = login_data["data"]["token"]
+    else:
+        sid = login_data.get("session_id") or login_data["data"]["session_id"]
+        import json
+        from app.services.session import session_manager
+        fake_redis = getattr(session_manager, "_fake_redis", None)
+        raw = fake_redis.store.get(f"admin:otp:{sid}") if fake_redis else None
+        otp = json.loads(raw)["otp"] if raw else "123456"
+        v_res = client_test.post(
+            "/admin/login/verify-otp",
+            json={"session_id": sid, "otp": otp},
+        )
+        token = v_res.json()["data"]["token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     test_content = b"%PDF-1.4 dummy pdf file content"

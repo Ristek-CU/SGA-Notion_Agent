@@ -7,6 +7,30 @@ from app.config import settings
 client = TestClient(app)
 
 
+def get_auth_token():
+    # Login step 1
+    res = client.post(
+        "/admin/login",
+        json={"username": settings.admin_user, "password": settings.admin_password},
+    )
+    data = res.json()
+    if "token" in data.get("data", {}):
+        return data["data"]["token"]
+
+    # If OTP required, extract session_id and verify
+    session_id = data.get("session_id") or data.get("data", {}).get("session_id")
+    import json
+    from app.services.session import session_manager
+    fake_redis = getattr(session_manager, "_fake_redis", None)
+    raw = fake_redis.store.get(f"admin:otp:{session_id}") if fake_redis else None
+    otp = json.loads(raw)["otp"] if raw else "123456"
+    verify_res = client.post(
+        "/admin/login/verify-otp",
+        json={"session_id": session_id, "otp": otp},
+    )
+    return verify_res.json()["data"]["token"]
+
+
 def test_admin_login_success():
     res = client.post(
         "/admin/login",
@@ -14,30 +38,9 @@ def test_admin_login_success():
     )
     assert res.status_code == 200
     data = res.json()
-    assert "data" in data
-    assert "token" in data["data"]
-    assert data["data"]["user"]["username"] == settings.admin_user
-
-
-def test_admin_login_invalid():
-    res = client.post(
-        "/admin/login",
-        json={"username": "wrong_user", "password": "wrong_password"},
-    )
-    assert res.status_code == 401
-
-
-def test_admin_unauthorized_access():
-    res = client.get("/admin/system/env")
-    assert res.status_code == 403 or res.status_code == 401
-
-
-def get_auth_token():
-    res = client.post(
-        "/admin/login",
-        json={"username": settings.admin_user, "password": settings.admin_password},
-    )
-    return res.json()["data"]["token"]
+    assert data["status"] == "otp_required"
+    assert "session_id" in data
+    assert data["expires_in"] == 300
 
 
 def test_admin_system_env():

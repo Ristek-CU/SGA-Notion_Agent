@@ -14,7 +14,21 @@ def get_auth_token():
         "/admin/login",
         json={"username": settings.admin_user, "password": settings.admin_password},
     )
-    return res.json()["data"]["token"]
+    data = res.json()
+    if "token" in data.get("data", {}):
+        return data["data"]["token"]
+
+    session_id = data.get("session_id") or data.get("data", {}).get("session_id")
+    import json
+    from app.services.session import session_manager
+    fake_redis = getattr(session_manager, "_fake_redis", None)
+    raw = fake_redis.store.get(f"admin:otp:{session_id}") if fake_redis else None
+    otp = json.loads(raw)["otp"] if raw else "123456"
+    verify_res = client.post(
+        "/admin/login/verify-otp",
+        json={"session_id": session_id, "otp": otp},
+    )
+    return verify_res.json()["data"]["token"]
 
 
 def test_contact_divisions_endpoint():
