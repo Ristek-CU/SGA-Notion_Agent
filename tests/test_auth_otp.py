@@ -41,7 +41,7 @@ def test_login_step1_generates_otp_and_notifies(mock_tg, mock_wa):
     assert "Kode OTP Anda:" in mock_wa.call_args[0][1]
 
     mock_tg.assert_called_once()
-    assert mock_tg.call_args[0][0] == "195340229"
+    assert mock_tg.call_args[0][0] == "6894908477"
     assert "Kode OTP Anda:" in mock_tg.call_args[0][1]
 
     # Verify OTP saved in redis
@@ -173,6 +173,24 @@ def test_resend_otp_flow(mock_tg, mock_wa):
     )
     assert res3.status_code == 200
     assert "token" in res3.json()
+
+
+@pytest.mark.asyncio
+async def test_send_otp_notifications_fallback_chat_id():
+    from app.admin.auth import send_otp_notifications
+    with patch("app.admin.auth.send_whatsapp_message", new_callable=AsyncMock) as mock_wa, \
+         patch("app.admin.auth.send_telegram_message", new_callable=AsyncMock) as mock_tg, \
+         patch("app.config.settings.otp_target_tg", "195340229"), \
+         patch("app.services.contacts.get_telegram_chat_id", new_callable=AsyncMock) as mock_get_id:
+
+        mock_get_id.return_value = "6894908477"
+        mock_wa.return_value = {"ok": True}
+        mock_tg.return_value = {"ok": True}
+
+        status = await send_otp_notifications("999888")
+        assert status["telegram"] is True
+        mock_tg.assert_called_once()
+        assert mock_tg.call_args[0][0] == "6894908477"
 
 
 def test_otp_disabled_fallback(monkeypatch):

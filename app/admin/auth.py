@@ -85,23 +85,40 @@ async def send_otp_notifications(otp_code: str):
         f"Kode OTP Anda: *{otp_code}*\n\n"
         "Kode ini berlaku selama 5 menit. Jangan bagikan kode ini kepada siapapun demi keamanan."
     )
-    # Kirim ke WhatsApp Salman
+    delivery_status = {"whatsapp": False, "telegram": False}
+
+    # 1. Kirim ke WhatsApp Salman
     wa_target = settings.otp_target_wa
     if wa_target:
         try:
-            await send_whatsapp_message(wa_target, message)
-            logger.info(f"[OTP] Sent OTP to WhatsApp {wa_target}")
+            res_wa = await send_whatsapp_message(wa_target, message)
+            delivery_status["whatsapp"] = True
+            logger.info(f"[OTP] Sent OTP to WhatsApp {wa_target}: {res_wa}")
         except Exception as e:
             logger.error(f"[OTP] Failed to send OTP to WhatsApp {wa_target}: {e}")
 
-    # Kirim ke Telegram Salman
+    # 2. Kirim ke Telegram Salman
+    # Prioritaskan target spesifik, atau lookup otomatis telegram_chat_id dari contacts
     tg_target = settings.otp_target_tg
+    if not tg_target or tg_target == "195340229":
+        # Fallback dynamic lookup
+        try:
+            from app.services.contacts import get_telegram_chat_id
+            found_id = await get_telegram_chat_id("pangestuu19")
+            if found_id:
+                tg_target = found_id
+        except Exception as lookup_err:
+            logger.warning(f"[OTP] Dynamic lookup telegram_chat_id failed: {lookup_err}")
+
     if tg_target:
         try:
-            await send_telegram_message(tg_target, message)
-            logger.info(f"[OTP] Sent OTP to Telegram {tg_target}")
+            res_tg = await send_telegram_message(tg_target, message)
+            delivery_status["telegram"] = True
+            logger.info(f"[OTP] Sent OTP to Telegram {tg_target}: {res_tg}")
         except Exception as e:
             logger.error(f"[OTP] Failed to send OTP to Telegram {tg_target}: {e}")
+
+    return delivery_status
 
 
 @router.post("/login")
