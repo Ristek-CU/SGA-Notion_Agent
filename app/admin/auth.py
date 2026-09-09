@@ -93,8 +93,10 @@ async def send_otp_notifications(otp_code: str):
         try:
             res_wa = await send_whatsapp_message(wa_target, message)
             delivery_status["whatsapp"] = True
-            logger.info(f"[OTP] Sent OTP to WhatsApp {wa_target}: {res_wa}")
+            print(f"[OTP] Successfully sent OTP to WhatsApp {wa_target}: {res_wa}")
+            logger.info(f"[OTP] Successfully sent OTP to WhatsApp {wa_target}: {res_wa}")
         except Exception as e:
+            print(f"[OTP ERROR] Failed to send OTP to WhatsApp {wa_target}: {e}")
             logger.error(f"[OTP] Failed to send OTP to WhatsApp {wa_target}: {e}")
 
     # 2. Kirim ke Telegram Salman
@@ -108,14 +110,17 @@ async def send_otp_notifications(otp_code: str):
             if found_id:
                 tg_target = found_id
         except Exception as lookup_err:
+            print(f"[OTP] Dynamic lookup telegram_chat_id failed: {lookup_err}")
             logger.warning(f"[OTP] Dynamic lookup telegram_chat_id failed: {lookup_err}")
 
     if tg_target:
         try:
             res_tg = await send_telegram_message(tg_target, message)
             delivery_status["telegram"] = True
-            logger.info(f"[OTP] Sent OTP to Telegram {tg_target}: {res_tg}")
+            print(f"[OTP] Successfully sent OTP to Telegram {tg_target}: {res_tg}")
+            logger.info(f"[OTP] Successfully sent OTP to Telegram {tg_target}: {res_tg}")
         except Exception as e:
+            print(f"[OTP ERROR] Failed to send OTP to Telegram {tg_target}: {e}")
             logger.error(f"[OTP] Failed to send OTP to Telegram {tg_target}: {e}")
 
     return delivery_status
