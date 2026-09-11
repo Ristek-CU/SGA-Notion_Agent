@@ -51,7 +51,7 @@ interface BroadcastJob {
   sent: number;
   failed: number;
   current_recipient: string | null;
-  status: 'running' | 'yielding' | 'pending' | 'completed' | 'cancelled';
+  status: 'running' | 'yielding' | 'pending' | 'completed' | 'cancelled' | 'paused';
   created_at: number;
   completed_at?: number | null;
   recipients?: RecipientItem[];
@@ -170,6 +170,17 @@ export const Broadcast: React.FC = () => {
       fetchApi<any>('/admin/broadcast/cancel', {
         method: 'POST',
         body: JSON.stringify({ job_id: jobId }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['broadcast-active'] });
+      queryClient.invalidateQueries({ queryKey: ['broadcast-history'] });
+    },
+  });
+
+  const resumeJobMutation = useMutation({
+    mutationFn: (jobId: string) =>
+      fetchApi<any>(`/admin/broadcast/${jobId}/resume`, {
+        method: 'POST',
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['broadcast-active'] });
@@ -505,6 +516,7 @@ export const Broadcast: React.FC = () => {
                   job.total > 0 ? Math.round(((job.sent + job.failed) / job.total) * 100) : 0;
                 const isRunning = job.status === 'running';
                 const isYielding = job.status === 'yielding';
+                const isPaused = job.status === 'paused';
                 const recipients = job.recipients || [];
                 const isExpanded = expandedJobId === job.id;
 
@@ -520,6 +532,8 @@ export const Broadcast: React.FC = () => {
                         ? 'border-indigo-300 ring-2 ring-indigo-500/10'
                         : isYielding
                         ? 'border-amber-300 ring-2 ring-amber-500/10'
+                        : isPaused
+                        ? 'border-rose-300 ring-2 ring-rose-500/10'
                         : 'border-slate-200'
                     } overflow-hidden shadow-xs transition-all`}
                   >
@@ -576,6 +590,23 @@ export const Broadcast: React.FC = () => {
                               Menyela (Chat Aktif)
                             </span>
                           )}
+                          {isPaused && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 rounded-full font-semibold text-xs">
+                              <PauseCircle className="w-3.5 h-3.5" />
+                              Di-pause (WAHA Putus)
+                            </span>
+                          )}
+
+                          {isPaused && (
+                            <button
+                              onClick={() => resumeJobMutation.mutate(job.id)}
+                              disabled={resumeJobMutation.isPending}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              <PlayCircle className="w-3.5 h-3.5" />
+                              {resumeJobMutation.isPending ? 'Memproses...' : 'Lanjutkan (Resume)'}
+                            </button>
+                          )}
 
                           <button
                             onClick={() => cancelJobMutation.mutate(job.id)}
@@ -600,7 +631,11 @@ export const Broadcast: React.FC = () => {
                         <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                           <div
                             className={`h-full transition-all duration-300 ${
-                              isYielding ? 'bg-amber-500' : 'bg-indigo-600'
+                              isPaused
+                                ? 'bg-rose-500'
+                                : isYielding
+                                ? 'bg-amber-500'
+                                : 'bg-indigo-600'
                             }`}
                             style={{ width: `${progressPct}%` }}
                           />

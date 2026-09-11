@@ -137,6 +137,25 @@ async def cancel_broadcast(req: Optional[BroadcastCancelRequest] = None, current
     }
 
 
+@router.post("/broadcast/{job_id}/resume")
+@router.post("/notify/broadcast/{job_id}/resume")
+async def resume_broadcast(job_id: str, current_user: str = Depends(verify_token)):
+    try:
+        resumed_job = await queue_manager.resume_broadcast(job_id)
+        await record_audit_log(current_user, "RESUME_BROADCAST", {"job_id": job_id})
+        return {
+            "data": resumed_job,
+            "error": None,
+            "message": f"Broadcast job {job_id} resumed successfully",
+        }
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to resume broadcast: {e}")
+
+
 @router.get("/broadcast/active")
 async def get_active_broadcast_jobs(current_user: str = Depends(verify_token)):
     jobs = await queue_manager.get_broadcast_jobs(status_filter="active")

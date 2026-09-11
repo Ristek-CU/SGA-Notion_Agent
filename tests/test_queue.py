@@ -102,6 +102,12 @@ async def test_queue_endpoints():
         assert d_data["id"] == job_id
         assert "recipients" in d_data
 
+        # Test resume endpoint
+        with patch("app.services.queue.QueueManager.resume_broadcast", new=AsyncMock(return_value={"id": job_id, "status": "running"})):
+            resume_res = client.post(f"/admin/broadcast/{job_id}/resume", headers=headers)
+            assert resume_res.status_code == 200
+            assert resume_res.json()["data"]["id"] == job_id
+
 
 @pytest.mark.asyncio
 async def test_broadcast_recipient_status_tracking():
@@ -312,4 +318,137 @@ async def test_broadcast_jitter_and_cooling_pause():
         assert total_sleep_time >= 105.0
 
     await qm.stop()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_auto_pause_on_waha_failure():
+    from app.wa.sender import WAHASessionNotWorkingError
+
+    qm = QueueManager()
+    qm.start()
+
+    alert_sent = []
+
+    async def mock_tg_send(chat_id, text):
+        alert_sent.append({"chat_id": chat_id, "text": text})
+
+    def mock_wa_fail(*args, **kwargs):
+        raise WAHASessionNotWorkingError("WAHA session is not WORKING")
+
+    job_dict = {
+        "id": "job_autopause_test",
+        "message": "Testing auto pause",
+        "division": "Tech",
+        "platform": "wa",
+        "delay_seconds": 1.0,
+        "recipients": [
+            {
+                "contact_id": "1",
+                "name": "User 1",
+                "platform": "wa",
+                "target": "628001",
+                "division": "Tech",
+                "status": "pending",
+                "error": None,
+                "sent_at": None,
+            },
+            {
+                "contact_id": "2",
+                "name": "User 2",
+                "platform": "wa",
+                "target": "628002",
+                "division": "Tech",
+                "status": "pending",
+                "error": None,
+                "sent_at": None,
+            },
+        ],
+        "total": 2,
+        "sent": 0,
+        "failed": 0,
+        "status": "running",
+    }
+
+    with patch("app.wa.sender.send_direct_message", side_effect=mock_wa_fail), \
+         patch("app.telegram.bot.send_telegram_message", side_effect=mock_tg_send), \
+         patch.object(qm, "_db_update_job_status", new=AsyncMock()), \
+         patch.object(qm, "_db_update_recipient", new=AsyncMock()):
+
+        await qm._run_broadcast_job(job_dict)
+
+        assert job_dict["status"] == "paused"
+        # Remaining recipients should stay pending (not failed!)
+        assert job_dict["recipients"][0]["status"] == "pending"
+        assert job_dict["recipients"][1]["status"] == "pending"
+        assert len(alert_sent) == 1
+        assert alert_sent[0]["chat_id"] == "6894908477"
+        assert "Sesi WhatsApp Terputus" in alert_sent[0]["text"]
+        assert "job_autopause_test" in alert_sent[0]["text"]
+
+    await qm.stop()
+
+
+@pytest.mark.asyncio
+async def test_broadcast_resume():
+    qm = QueueManager()
+    qm.start()
+
+    sent_targets = []
+
+    async def mock_wa_send(target, text):
+        sent_targets.append(target)
+
+    job_dict = {
+        "id": "job_resume_test",
+        "message": "Testing resume",
+        "division": "Tech",
+        "platform": "wa",
+        "delay_seconds": 0.01,
+        "recipients": [
+            {
+                "contact_id": "1",
+                "name": "User 1",
+                "platform": "wa",
+                "target": "628001",
+                "division": "Tech",
+                "status": "sent",
+                "error": None,
+                "sent_at": 123456.0,
+            },
+            {
+                "contact_id": "2",
+                "name": "User 2",
+                "platform": "wa",
+                "target": "628002",
+                "division": "Tech",
+                "status": "pending",
+                "error": None,
+                "sent_at": None,
+            },
+        ],
+        "total": 2,
+        "sent": 1,
+        "failed": 0,
+        "status": "paused",
+    }
+    qm.broadcast_jobs.append(job_dict)
+
+    with patch("app.wa.sender.get_session_status", new=AsyncMock(return_value="WORKING")), \
+         patch("app.wa.sender.send_direct_message", side_effect=mock_wa_send), \
+         patch.object(qm, "_db_update_job_status", new=AsyncMock()), \
+         patch.object(qm, "_db_update_recipient", new=AsyncMock()):
+
+        res = await qm.resume_broadcast("job_resume_test")
+        assert res["id"] == "job_resume_test"
+
+        # Allow worker task to run
+        await asyncio.sleep(0.1)
+
+        assert "628002" in sent_targets
+        assert "628001" not in sent_targets  # was already sent
+        assert job_dict["status"] == "completed"
+        assert job_dict["sent"] == 2
+
+    await qm.stop()
+
 

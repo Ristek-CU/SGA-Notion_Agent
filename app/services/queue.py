@@ -479,7 +479,7 @@ class QueueManager:
                             """
                             UPDATE broadcast_jobs
                             SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
-                            WHERE id = $1 AND status IN ('running', 'yielding', 'waiting')
+                            WHERE id = $1 AND status IN ('running', 'yielding', 'waiting', 'paused')
                             """,
                             job_id,
                         )
@@ -490,8 +490,42 @@ class QueueManager:
 
         return cancelled
 
+    async def resume_broadcast(self, job_id: str) -> Dict[str, Any]:
+        """Resume a paused broadcast job after checking WAHA session status."""
+        from app.wa.sender import get_session_status
+
+        waha_status = await get_session_status()
+        if waha_status != "WORKING":
+            raise RuntimeError(f"Cannot resume broadcast: WAHA session is not WORKING (current status: {waha_status})")
+
+        job = None
+        for j in self.broadcast_jobs:
+            if j["id"] == job_id:
+                job = j
+                break
+
+        if not job:
+            # Load job from database into memory
+            job_data = await self.get_job(job_id)
+            if not job_data:
+                raise ValueError(f"Broadcast job {job_id} not found")
+            job = job_data
+            job["_cancel_requested"] = False
+            self.broadcast_jobs.append(job)
+
+        if job.get("status") not in ("paused", "cancelled"):
+            raise ValueError(f"Broadcast job {job_id} is not paused (status: {job.get('status')})")
+
+        job["_cancel_requested"] = False
+        job["status"] = "running"
+        job["completed_at"] = None
+        await self._db_update_job_status(job)
+
+        asyncio.create_task(self._run_broadcast_job(job))
+        return self._format_broadcast_job(job, include_recipients=True)
+
     async def _run_broadcast_job(self, job: Dict[str, Any]):
-        from app.wa.sender import send_direct_message, send_whatsapp_file
+        from app.wa.sender import send_direct_message, send_whatsapp_file, WAHASessionNotWorkingError
         from app.telegram.bot import send_telegram_message, send_telegram_document
 
         targets = job.get("recipients", [])
@@ -504,6 +538,10 @@ class QueueManager:
         batch_threshold = random.randint(10, 12)
 
         for target_info in targets:
+            # Skip recipients that are already sent or failed (important for resume)
+            if target_info.get("status") in ("sent", "failed"):
+                continue
+
             if job.get("_cancel_requested"):
                 job["status"] = "cancelled"
                 job["completed_at"] = time.time()
@@ -573,6 +611,27 @@ class QueueManager:
                     status="sent",
                     sent_at=target_info["sent_at"],
                 )
+            except WAHASessionNotWorkingError as e:
+                err_msg = str(e)
+                logger.error(f"[BROADCAST_CIRCUIT_BREAKER] {err_msg}. Auto-pausing job {job['id']}.")
+                job["status"] = "paused"
+                job["current_recipient"] = None
+                await self._db_update_job_status(job)
+
+                # Send Telegram alert to Salman
+                salman_chat_id = "6894908477"
+                sent_count = job.get("sent", 0)
+                alert_text = (
+                    f"⚠️ *Sesi WhatsApp Terputus*\n"
+                    f"Sesi WAHA terputus saat broadcast `{job['id']}`. "
+                    f"Broadcast di-pause otomatis pada antrean ke-{sent_count}. "
+                    f"Silakan cek sesi WAHA di dashboard."
+                )
+                try:
+                    await send_telegram_message(salman_chat_id, alert_text)
+                except Exception as tg_err:
+                    logger.warning(f"Failed sending WAHA disconnect alert to Telegram: {tg_err}")
+                return
             except Exception as e:
                 err_msg = str(e)
                 if "chat not found" in err_msg.lower() and target_info.get("platform") == "telegram":
@@ -745,7 +804,7 @@ class QueueManager:
                     where_clause = ""
                     params = []
                     if status_filter == "active":
-                        where_clause = "WHERE status IN ('running', 'yielding', 'pending', 'waiting')"
+                        where_clause = "WHERE status IN ('running', 'yielding', 'pending', 'waiting', 'paused')"
                     elif status_filter == "history":
                         where_clause = "WHERE status IN ('completed', 'cancelled')"
                     elif status_filter:
@@ -791,7 +850,7 @@ class QueueManager:
                         for r in rows:
                             j_dict = dict(r)
                             jid = j_dict["id"]
-                            if jid in in_mem_map and in_mem_map[jid]["status"] in ("running", "yielding", "pending"):
+                            if jid in in_mem_map and in_mem_map[jid]["status"] in ("running", "yielding", "pending", "paused"):
                                 mem_job = in_mem_map[jid]
                                 j_dict["current_recipient"] = mem_job.get("current_recipient")
                                 j_dict["sent"] = mem_job.get("sent", j_dict["sent"])
@@ -810,7 +869,7 @@ class QueueManager:
         for j in reversed(self.broadcast_jobs):
             st = j.get("status", "")
             if status_filter == "active":
-                if st not in ("running", "yielding", "pending"):
+                if st not in ("running", "yielding", "pending", "paused"):
                     continue
             elif status_filter == "history":
                 if st not in ("completed", "cancelled"):

@@ -1,9 +1,16 @@
 import os
 import json
 import re
+import asyncio
 import httpx
 from typing import Optional, Dict, Any
 from app.config import settings
+
+
+class WAHASessionNotWorkingError(Exception):
+    """Raised when WAHA session is not WORKING and fails to recover."""
+    pass
+
 
 LID_CACHE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cache", "lid-cache.json")
 _lid_cache: Dict[str, str] = {}
@@ -147,6 +154,39 @@ async def stop_typing(chat_id: str, instance: Optional[str] = None):
         pass
 
 
+async def get_session_status(instance: Optional[str] = None) -> str:
+    """Check session status from WAHA GET /api/sessions/{session}."""
+    target_instance = instance or settings.waha_instance_name
+    url = f"{settings.waha_api_url.rstrip('/')}/api/sessions/{target_instance}"
+    headers = {"X-Api-Key": settings.waha_api_key}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("status", "UNKNOWN")
+    except Exception:
+        pass
+    return "UNKNOWN"
+
+
+async def wait_for_session_recovery(instance: Optional[str] = None, timeout: float = 60.0, poll_interval: float = 5.0) -> bool:
+    """Poller checking WAHA session status every poll_interval up to timeout seconds.
+    
+    Returns True if recovered (WORKING), False otherwise.
+    """
+    target_instance = instance or settings.waha_instance_name
+    start_time = asyncio.get_event_loop().time()
+    while (asyncio.get_event_loop().time() - start_time) < timeout:
+        status = await get_session_status(target_instance)
+        if status == "WORKING":
+            return True
+        await asyncio.sleep(poll_interval)
+    # Check one last time
+    final_status = await get_session_status(target_instance)
+    return final_status == "WORKING"
+
+
 async def send_whatsapp_message(
     number_or_jid: str,
     text: str,
@@ -176,6 +216,20 @@ async def send_whatsapp_message(
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 422:
+            print(f"[WAHA_CIRCUIT_BREAKER] 422 received on sendText, polling session recovery for session={target_instance}")
+            recovered = await wait_for_session_recovery(target_instance, timeout=60.0, poll_interval=5.0)
+            if recovered:
+                # Retry once after recovery
+                retry_resp = await client.post(url, json=payload, headers=headers)
+                if retry_resp.status_code < 400:
+                    return retry_resp.json()
+                print(f"[WAHA_SEND_RETRY_ERROR] status={retry_resp.status_code} body={retry_resp.text}")
+                retry_resp.raise_for_status()
+                return retry_resp.json()
+            else:
+                raise WAHASessionNotWorkingError(f"WAHA session '{target_instance}' is not WORKING after recovery timeout")
+
         if resp.status_code >= 400:
             print(f"[WAHA_SEND_ERROR] status={resp.status_code} body={resp.text} session={target_instance} to={recipient}")
         resp.raise_for_status()
@@ -220,6 +274,20 @@ async def send_whatsapp_file(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(url, json=payload, headers=headers)
+        if resp.status_code == 422:
+            print(f"[WAHA_CIRCUIT_BREAKER] 422 received on sendFile, polling session recovery for session={target_instance}")
+            recovered = await wait_for_session_recovery(target_instance, timeout=60.0, poll_interval=5.0)
+            if recovered:
+                # Retry once after recovery
+                retry_resp = await client.post(url, json=payload, headers=headers)
+                if retry_resp.status_code < 400:
+                    return retry_resp.json()
+                print(f"[WAHA_SEND_FILE_RETRY_ERROR] status={retry_resp.status_code} body={retry_resp.text}")
+                retry_resp.raise_for_status()
+                return retry_resp.json()
+            else:
+                raise WAHASessionNotWorkingError(f"WAHA session '{target_instance}' is not WORKING after recovery timeout")
+
         if resp.status_code >= 400:
             print(f"[WAHA_SEND_FILE_ERROR] status={resp.status_code} body={resp.text} session={target_instance} to={recipient}")
         resp.raise_for_status()
