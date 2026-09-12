@@ -117,11 +117,11 @@ export const Members: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Members & Contacts</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Members & Contacts</h1>
         <button
           onClick={openAdd}
-          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700"
+          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 w-full sm:w-auto text-center cursor-pointer shadow-xs"
         >
           + Tambah Member
         </button>
@@ -137,43 +137,45 @@ export const Members: React.FC = () => {
         {(contacts || []).length === 0 ? (
           <p className="p-4 text-slate-400">Belum ada kontak.</p>
         ) : (
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
-              <tr>
-                <th className="p-4">Name</th>
-                <th className="p-4">Nickname</th>
-                <th className="p-4">Whatsapp / Telegram</th>
-                <th className="p-4">Division / Role</th>
-                <th className="p-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {(contacts || []).map((c: Contact, i: number) => (
-                <tr key={c.phone || i} className="hover:bg-slate-50">
-                  <td className="p-4 font-medium text-slate-900">{c.name}</td>
-                  <td className="p-4">{c.nickname || '-'}</td>
-                  <td className="p-4 font-mono text-xs">{waTgCell(c)}</td>
-                  <td className="p-4">{[c.division, c.role].filter(Boolean).join(' / ') || '-'}</td>
-                  <td className="p-4 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(c)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-3">Edit</button>
-                    <button
-                      onClick={() => { if (confirm(`Hapus ${c.name} (${c.phone})?`)) deleteMut.mutate(c.phone); }}
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
-                    >Delete</button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600 min-w-[540px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
+                <tr>
+                  <th className="p-3 sm:p-4">Name</th>
+                  <th className="p-3 sm:p-4">Nickname</th>
+                  <th className="p-3 sm:p-4">Whatsapp / Telegram</th>
+                  <th className="p-3 sm:p-4">Division / Role</th>
+                  <th className="p-3 sm:p-4 text-right">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(contacts || []).map((c: Contact, i: number) => (
+                  <tr key={c.phone || i} className="hover:bg-slate-50">
+                    <td className="p-3 sm:p-4 font-medium text-slate-900">{c.name}</td>
+                    <td className="p-3 sm:p-4">{c.nickname || '-'}</td>
+                    <td className="p-3 sm:p-4 font-mono text-xs">{waTgCell(c)}</td>
+                    <td className="p-3 sm:p-4">{[c.division, c.role].filter(Boolean).join(' / ') || '-'}</td>
+                    <td className="p-3 sm:p-4 text-right whitespace-nowrap">
+                      <button onClick={() => openEdit(c)} className="text-indigo-600 hover:text-indigo-800 text-sm font-medium mr-3">Edit</button>
+                      <button
+                        onClick={() => { if (confirm(`Hapus ${c.name} (${c.phone})?`)) deleteMut.mutate(c.phone); }}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                      >Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-3 z-50 overflow-y-auto" onClick={() => setShowModal(false)}>
           <form
             onSubmit={submit}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl"
+            className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md space-y-4 shadow-xl max-h-[90vh] overflow-y-auto my-auto"
           >
             <h2 className="text-lg font-bold text-slate-900">{editingContact ? 'Edit Member' : 'Tambah Member'}</h2>
             {[

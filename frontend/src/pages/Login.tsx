@@ -193,23 +193,23 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4 font-sans text-slate-100 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-3 sm:p-4 font-sans text-slate-100 relative overflow-hidden">
       {/* Subtle glowing ambient lights */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="bg-slate-800/90 backdrop-blur-md p-8 rounded-2xl border border-slate-700/80 shadow-2xl w-full max-w-md relative z-10 transition-all">
+      <div className="bg-slate-800/90 backdrop-blur-md p-4 sm:p-8 rounded-2xl border border-slate-700/80 shadow-2xl w-full max-w-md relative z-10 transition-all">
         
         {/* Header Branding */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-3">
+        <div className="flex flex-col items-center mb-5 sm:mb-6">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-400 flex items-center justify-center shadow-lg shadow-indigo-500/30 mb-3">
             {step === 'credentials' ? (
-              <ShieldCheck className="w-7 h-7 text-white" />
+              <ShieldCheck className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             ) : (
-              <KeyRound className="w-7 h-7 text-white animate-pulse" />
+              <KeyRound className="w-6 h-6 sm:w-7 sm:h-7 text-white animate-pulse" />
             )}
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white">
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white text-center">
             {step === 'credentials' ? 'Dashboard Roro' : 'Verifikasi OTP 2-Langkah'}
           </h2>
           <p className="text-xs text-slate-400 mt-1 text-center">
@@ -293,12 +293,12 @@ export const Login: React.FC = () => {
             {/* Target Information Card */}
             <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-700/60 text-xs space-y-2">
               <div className="flex items-center space-x-2 text-slate-300 font-medium">
-                <MessageSquare className="w-4 h-4 text-emerald-400" />
-                <span>WhatsApp: +62 851-7501-9086</span>
+                <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="truncate">WhatsApp: +62 851-7501-9086</span>
               </div>
               <div className="flex items-center space-x-2 text-slate-300 font-medium">
-                <Send className="w-4 h-4 text-sky-400" />
-                <span>Telegram: @pangestuu19 (Salman)</span>
+                <Send className="w-4 h-4 text-sky-400 shrink-0" />
+                <span className="truncate">Telegram: @pangestuu19 (Salman)</span>
               </div>
             </div>
 
@@ -307,7 +307,7 @@ export const Login: React.FC = () => {
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2.5 text-center">
                 Masukkan 6 Digit OTP
               </label>
-              <div className="flex justify-between gap-2">
+              <div className="flex justify-center gap-1.5 sm:gap-2">
                 {otp.map((digit, idx) => (
                   <input
                     key={idx}
@@ -318,7 +318,7 @@ export const Login: React.FC = () => {
                     value={digit}
                     onChange={(e) => handleOtpChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
-                    className="w-12 h-13 text-center text-xl font-bold bg-slate-900 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    className="w-9 h-11 sm:w-12 sm:h-13 text-center text-lg sm:text-xl font-bold bg-slate-900 border border-slate-700 rounded-lg sm:rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   />
                 ))}
               </div>

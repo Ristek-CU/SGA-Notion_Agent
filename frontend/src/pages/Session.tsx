@@ -47,10 +47,10 @@ export const Session: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Bot Sessions</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Bot Sessions</h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Memori percakapan bot per user (konteks chat AI di Redis, TTL 30 menit).
             Reset kalau bot kehilangan konteks atau jawaban terpengaruh chat lama.
           </p>
@@ -58,7 +58,7 @@ export const Session: React.FC = () => {
         <button
           onClick={() => { if (confirm('Reset SEMUA session percakapan?')) resetAll.mutate(); }}
           disabled={resetAll.isPending}
-          className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+          className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 w-full sm:w-auto text-center shrink-0 cursor-pointer shadow-xs"
         >
           {resetAll.isPending ? 'Resetting...' : 'Reset All'}
         </button>
@@ -72,39 +72,41 @@ export const Session: React.FC = () => {
         {(sessions || []).length === 0 ? (
           <p className="p-4 text-slate-400">Belum ada sesi — bot belum menerima pesan.</p>
         ) : (
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
-              <tr>
-                <th className="p-4">User</th>
-                <th className="p-4">Pesan</th>
-                <th className="p-4">Chat Terakhir</th>
-                <th className="p-4">Aktivitas</th>
-                <th className="p-4">Status Tiket</th>
-                <th className="p-4 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {(sessions || []).map((s) => (
-                <tr key={s.phone} className="hover:bg-slate-50">
-                  <td className="p-4 font-mono text-xs text-slate-900">{s.phone}</td>
-                  <td className="p-4">{s.msg_count}</td>
-                  <td className="p-4 max-w-xs truncate" title={s.last_msg}>{s.last_msg || '-'}</td>
-                  <td className="p-4 whitespace-nowrap">{fmtAgo(s.last_activity)}</td>
-                  <td className="p-4">
-                    {s.pending_ticket
-                      ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">pending</span>
-                      : <span className="text-slate-400">-</span>}
-                  </td>
-                  <td className="p-4 text-right">
-                    <button
-                      onClick={() => { if (confirm(`Reset session ${s.phone}?`)) resetOne.mutate(s.phone); }}
-                      className="text-red-600 hover:text-red-800 text-sm font-medium"
-                    >Reset</button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600 min-w-[550px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
+                <tr>
+                  <th className="p-3 sm:p-4">User</th>
+                  <th className="p-3 sm:p-4">Pesan</th>
+                  <th className="p-3 sm:p-4">Chat Terakhir</th>
+                  <th className="p-3 sm:p-4">Aktivitas</th>
+                  <th className="p-3 sm:p-4">Status Tiket</th>
+                  <th className="p-3 sm:p-4 text-right">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(sessions || []).map((s) => (
+                  <tr key={s.phone} className="hover:bg-slate-50">
+                    <td className="p-3 sm:p-4 font-mono text-xs text-slate-900">{s.phone}</td>
+                    <td className="p-3 sm:p-4">{s.msg_count}</td>
+                    <td className="p-3 sm:p-4 max-w-xs truncate" title={s.last_msg}>{s.last_msg || '-'}</td>
+                    <td className="p-3 sm:p-4 whitespace-nowrap">{fmtAgo(s.last_activity)}</td>
+                    <td className="p-3 sm:p-4">
+                      {s.pending_ticket
+                        ? <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">pending</span>
+                        : <span className="text-slate-400">-</span>}
+                    </td>
+                    <td className="p-3 sm:p-4 text-right">
+                      <button
+                        onClick={() => { if (confirm(`Reset session ${s.phone}?`)) resetOne.mutate(s.phone); }}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium cursor-pointer"
+                      >Reset</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

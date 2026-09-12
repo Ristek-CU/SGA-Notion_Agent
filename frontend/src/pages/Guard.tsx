@@ -26,7 +26,7 @@ export const Guard: React.FC = () => {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">Guard Settings</h1>
 
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-5">
+      <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-xs space-y-5">
         <ToggleRow
           label="Galat / Guard aktif"
           desc="Aktifkan penyaringan pesan keluar dari scope chat bot."
@@ -44,7 +44,7 @@ export const Guard: React.FC = () => {
 
         <div>
           <p className="text-sm text-slate-500 mb-1">Konfigurasi mentah (backend):</p>
-          <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto">
+          <pre className="bg-slate-900 text-slate-100 p-3 sm:p-4 rounded-lg text-xs overflow-x-auto max-w-full">
             {JSON.stringify(guard, null, 2)}
           </pre>
         </div>

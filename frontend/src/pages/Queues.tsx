@@ -48,18 +48,18 @@ export const Queues: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
-            <Layers className="w-6 h-6 text-indigo-600" />
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
+            <Layers className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
             Queue Monitor
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             Pemantauan real-time Dual Priority Queue: Active Chat (High Priority) & Broadcast Pipeline (Low Priority)
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
             Live Polling (1.5s)
           </span>
@@ -69,7 +69,7 @@ export const Queues: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Chat Priority Queue Column */}
         <div className="lg:col-span-6 space-y-4">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-indigo-600" />
@@ -144,7 +144,7 @@ export const Queues: React.FC = () => {
 
         {/* Broadcast Queue Overview Column */}
         <div className="lg:col-span-6 space-y-4">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
+          <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Radio className="w-5 h-5 text-indigo-600" />

@@ -64,8 +64,8 @@ export const Config: React.FC = () => {
       )}
 
       {/* AI Provider Settings */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-800">AI Model & Provider Config</h2>
+      <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 space-y-4">
+        <h2 className="text-base sm:text-lg font-semibold text-slate-800">AI Model & Provider Config</h2>
         <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Anthropic / Router Base URL</label>
@@ -111,9 +111,9 @@ export const Config: React.FC = () => {
       </div>
 
       {/* Raw Env View */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-2">
+      <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 space-y-2">
         <h2 className="text-sm font-semibold text-slate-700">System Info</h2>
-        <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs overflow-x-auto">
+        <pre className="bg-slate-900 text-slate-100 p-3 sm:p-4 rounded-lg text-xs overflow-x-auto max-w-full">
           {JSON.stringify(envConfig || {}, null, 2)}
         </pre>
       </div>

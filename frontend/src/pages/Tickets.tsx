@@ -24,40 +24,42 @@ export const Tickets: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Tickets / Backlog</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Tickets / Backlog</h1>
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         {rows.length === 0 ? (
           <p className="p-4 text-slate-400">Belum ada ticket.</p>
         ) : (
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
-              <tr>
-                <th className="p-4">Task Name</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Priority</th>
-                <th className="p-4">Division</th>
-                <th className="p-4">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-50">
-                  <td className="p-4 font-medium text-slate-900">{t.name}</td>
-                  <td className="p-4">{t.status}</td>
-                  <td className="p-4">{t.priority}</td>
-                  <td className="p-4">{t.division}</td>
-                  <td className="p-4">
-                    <button
-                      onClick={() => navigate(`/tickets/${t.id}`)}
-                      className="text-sky-600 hover:text-sky-800 hover:underline"
-                    >
-                      Detail
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600 min-w-[500px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
+                <tr>
+                  <th className="p-3 sm:p-4">Task Name</th>
+                  <th className="p-3 sm:p-4">Status</th>
+                  <th className="p-3 sm:p-4">Priority</th>
+                  <th className="p-3 sm:p-4">Division</th>
+                  <th className="p-3 sm:p-4">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((t) => (
+                  <tr key={t.id} className="hover:bg-slate-50">
+                    <td className="p-3 sm:p-4 font-medium text-slate-900">{t.name}</td>
+                    <td className="p-3 sm:p-4">{t.status}</td>
+                    <td className="p-3 sm:p-4">{t.priority}</td>
+                    <td className="p-3 sm:p-4">{t.division}</td>
+                    <td className="p-3 sm:p-4">
+                      <button
+                        onClick={() => navigate(`/tickets/${t.id}`)}
+                        className="text-sky-600 hover:text-sky-800 hover:underline cursor-pointer font-medium"
+                      >
+                        Detail
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

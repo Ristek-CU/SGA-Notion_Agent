@@ -71,26 +71,26 @@ export const TicketDetail: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <button onClick={() => navigate('/tickets')} className="text-sm text-sky-600 hover:text-sky-800">
+      <button onClick={() => navigate('/tickets')} className="text-sm text-sky-600 hover:text-sky-800 cursor-pointer">
         &larr; Back to Tickets
       </button>
-      <h1 className="text-2xl font-bold text-slate-900">{name}</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 break-words">{name}</h1>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6">
-        <table className="w-full text-left text-sm text-slate-600">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-6 overflow-x-auto">
+        <table className="w-full text-left text-sm text-slate-600 min-w-[300px]">
           <tbody className="divide-y divide-slate-100">
             {rows.map(([label, value]) => (
               <tr key={label}>
-                <td className="py-2 pr-4 font-medium text-slate-700 w-40 align-top">{label}</td>
-                <td className="py-2 break-all">{value}</td>
+                <td className="py-2 pr-3 font-medium text-slate-700 w-28 sm:w-40 align-top shrink-0 text-xs sm:text-sm">{label}</td>
+                <td className="py-2 break-words text-xs sm:text-sm">{value}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <h2 className="text-lg font-semibold text-slate-900">Edit Ticket</h2>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-4 max-w-md">
+      <h2 className="text-base sm:text-lg font-semibold text-slate-900">Edit Ticket</h2>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 sm:p-6 space-y-4 max-w-md">
         <div>
           <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Status</label>
           <select

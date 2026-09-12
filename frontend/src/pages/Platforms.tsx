@@ -124,27 +124,27 @@ const WASection: React.FC = () => {
       </div>
 
       {showQr && (
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-xs">
           <h3 className="font-semibold text-slate-900 mb-1">Scan QR untuk menghubungkan WhatsApp</h3>
-          <p className="text-sm text-slate-400 mb-4">
+          <p className="text-xs sm:text-sm text-slate-500 mb-4">
             Buka WhatsApp di HP → <strong>Menu → Perangkat tertaut → Tautkan perangkat</strong>, lalu scan QR ini.
             QR otomatis diperbarui tiap beberapa detik.
           </p>
-          <div className="flex items-start gap-6 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             {qr?.qr_png_base64 ? (
               <img
                 src={`data:image/png;base64,${qr.qr_png_base64}`}
                 alt="WhatsApp QR"
-                className="w-56 h-56 border border-slate-200 rounded-lg bg-white"
+                className="w-48 h-48 sm:w-56 sm:h-56 border border-slate-200 rounded-lg bg-white shrink-0 object-contain"
               />
             ) : (
-              <div className="w-56 h-56 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-sm text-slate-400">
+              <div className="w-48 h-48 sm:w-56 sm:h-56 border border-dashed border-slate-300 rounded-lg flex items-center justify-center text-sm text-slate-400 shrink-0">
                 {statusName === 'STARTING' ? 'Menyiapkan QR…' : 'QR belum tersedia'}
               </div>
             )}
-            <div className="text-sm text-slate-500">
+            <div className="text-xs sm:text-sm text-slate-500 w-full min-w-0 overflow-hidden">
               <p className="font-medium text-slate-700 mb-1">Engine ({status?.engine?.engine ?? 'WEBJS'})</p>
-              <pre className="text-xs">{reasons}</pre>
+              <pre className="text-[11px] bg-slate-50 p-2.5 rounded-md overflow-x-auto max-w-full">{reasons}</pre>
             </div>
           </div>
         </div>
@@ -181,10 +181,10 @@ const InfoCard: React.FC<{ label: string; value: string; highlight?: boolean }> 
   value,
   highlight,
 }) => (
-  <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
-    <p className="text-sm font-medium text-slate-500">{label}</p>
+  <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-xs">
+    <p className="text-xs sm:text-sm font-medium text-slate-500">{label}</p>
     <p
-      className={`text-xl font-bold mt-1 break-all ${
+      className={`text-lg sm:text-xl font-bold mt-1 break-all ${
         highlight ? 'text-emerald-600' : 'text-slate-900'
       }`}
     >
@@ -198,34 +198,34 @@ const WAButtons: React.FC<{
   showQr?: boolean;
   testAction: any;
 }> = ({ runAction, showQr, testAction }) => (
-  <div className="flex flex-wrap gap-3">
+  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
     <button
       onClick={() => runAction.mutate('/admin/wa/scan')}
       disabled={runAction.isPending}
-      className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50"
+      className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs sm:text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 text-center"
     >
       {showQr && runAction.variables === '/admin/wa/scan' && runAction.isPending
         ? 'Membuat QR…'
-        : 'Scan / Buat QR'}
+        : 'Scan QR'}
     </button>
     <button
       onClick={() => testAction.mutate()}
       disabled={testAction.isPending}
-      className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+      className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 text-center"
     >
       {testAction.isPending ? 'Menguji…' : 'Test Koneksi'}
     </button>
     <button
       onClick={() => runAction.mutate('/admin/wa/refresh')}
       disabled={runAction.isPending}
-      className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+      className="px-3 py-2 rounded-lg bg-amber-600 text-white text-xs sm:text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 text-center"
     >
       Refresh
     </button>
     <button
       onClick={() => runAction.mutate('/admin/wa/disconnect')}
       disabled={runAction.isPending}
-      className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50"
+      className="px-3 py-2 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-semibold hover:bg-red-700 disabled:opacity-50 text-center"
     >
       Disconnect
     </button>
@@ -289,7 +289,7 @@ const TelegramCard: React.FC = () => {
         : 'belum ada';
 
   return (
-    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
+    <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">Telegram</h2>
         <span

@@ -21,31 +21,33 @@ export const Audit: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Audit Logs</h1>
+      <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Audit Logs</h1>
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         {rows.length === 0 ? (
           <p className="p-4 text-slate-400">Belum ada audit log.</p>
         ) : (
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
-              <tr>
-                <th className="p-4">Waktu</th>
-                <th className="p-4">User</th>
-                <th className="p-4">Aksi</th>
-                <th className="p-4">Detail</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {rows.map((r) => (
-                <tr key={r.key} className="hover:bg-slate-50">
-                  <td className="p-4 whitespace-nowrap">{r.time}</td>
-                  <td className="p-4">{r.user}</td>
-                  <td className="p-4">{r.action}</td>
-                  <td className="p-4">{r.details}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600 min-w-[550px]">
+              <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
+                <tr>
+                  <th className="p-3 sm:p-4">Waktu</th>
+                  <th className="p-3 sm:p-4">User</th>
+                  <th className="p-3 sm:p-4">Aksi</th>
+                  <th className="p-3 sm:p-4">Detail</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((r) => (
+                  <tr key={r.key} className="hover:bg-slate-50">
+                    <td className="p-3 sm:p-4 whitespace-nowrap">{r.time}</td>
+                    <td className="p-3 sm:p-4">{r.user}</td>
+                    <td className="p-3 sm:p-4">{r.action}</td>
+                    <td className="p-3 sm:p-4 text-xs font-mono break-all">{r.details}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
